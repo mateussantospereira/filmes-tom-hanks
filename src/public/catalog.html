@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catálogo — Tom Hanks</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <h1>🎬 Filmes — Tom Hanks</h1>
+    <div class="header-right">
+      <span id="user-name"></span>
+      <button onclick="logout()">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="movies" onclick="switchTab('movies')">🎬 Filmes</button>
+      <button class="tab-btn" data-tab="favorites" onclick="switchTab('favorites')">⭐ Favoritos</button>
+    </div>
+    <div id="loading">Carregando filmes...</div>
+    <div id="movies-grid" class="movies-grid"></div>
+
+    <div id="modal" class="modal" style="display:none">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+        <div class="modal-body">
+          <img id="modal-poster" src="" alt="">
+          <div class="modal-info">
+            <h2 id="modal-title"></h2>
+            <p id="modal-overview"></p>
+            <div class="modal-actions">
+              <button id="btn-fav" onclick="toggleFavorite()">⭐ Favoritar</button>
+            </div>
+            <div class="comments-section">
+              <h3>Meus Comentários</h3>
+              <div id="comments-list"></div>
+              <div class="comment-input">
+                <textarea id="comment-text" placeholder="Escreva um comentário..." rows="3"></textarea>
+                <button onclick="saveComment()">Salvar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

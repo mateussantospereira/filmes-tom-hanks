@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catálogo de Filmes — Tom Hanks</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="auth-container">
+    <h1>🎬 Catálogo de Filmes</h1>
+    <h2>Tom Hanks Collection</h2>
+
+    <div id="auth-box">
+      <div id="login-form">
+        <h3>Entrar</h3>
+        <input type="email" id="login-email" placeholder="Email" required>
+        <input type="password" id="login-senha" placeholder="Senha" required>
+        <button onclick="doLogin()">Entrar</button>
+        <p class="toggle">Não tem conta? <a href="#" onclick="showRegister()">Cadastre-se</a></p>
+      </div>
+
+      <div id="register-form" style="display:none">
+        <h3>Cadastrar</h3>
+        <input type="text" id="reg-nome" placeholder="Nome" required>
+        <input type="email" id="reg-email" placeholder="Email" required>
+        <input type="password" id="reg-senha" placeholder="Senha" required>
+        <button onclick="doRegister()">Cadastrar</button>
+        <p class="toggle">Já tem conta? <a href="#" onclick="showLogin()">Entrar</a></p>
+      </div>
+
+      <p id="auth-error" class="error"></p>
+    </div>
+  </div>
+
+  <script>
+    function showRegister() {
+      document.getElementById('login-form').style.display = 'none';
+      document.getElementById('register-form').style.display = 'block';
+      document.getElementById('auth-error').textContent = '';
+    }
+    function showLogin() {
+      document.getElementById('login-form').style.display = 'block';
+      document.getElementById('register-form').style.display = 'none';
+      document.getElementById('auth-error').textContent = '';
+    }
+
+    async function doLogin() {
+      const email = document.getElementById('login-email').value;
+      const senha = document.getElementById('login-senha').value;
+      const errEl = document.getElementById('auth-error');
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, senha })
+        });
+        const data = await res.json();
+        if (!res.ok) { errEl.textContent = data.error; return; }
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('nome', data.nome);
+        window.location.href = '/catalog';
+      } catch { errEl.textContent = 'Erro de conexão'; }
+    }
+
+    async function doRegister() {
+      const nome = document.getElementById('reg-nome').value;
+      const email = document.getElementById('reg-email').value;
+      const senha = document.getElementById('reg-senha').value;
+      const errEl = document.getElementById('auth-error');
+
+      try {
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nome, email, senha })
+        });
+        const data = await res.json();
+        if (!res.ok) { errEl.textContent = data.error; return; }
+        showLogin();
+        document.getElementById('auth-error').textContent = 'Conta criada! Faça login.';
+      } catch { errEl.textContent = 'Erro de conexão'; }
+    }
+
+    if (localStorage.getItem('token')) window.location.href = '/catalog';
+  </script>
+</body>
+</html>
