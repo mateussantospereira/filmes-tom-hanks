@@ -1,0 +1,16 @@
+version: "3.8"
+services:
+  app:
+    build: .
+    ports:
+      - "8222:8222"
+    environment:
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=8222
+    restart: always
