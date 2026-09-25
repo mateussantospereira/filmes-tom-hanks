@@ -18,6 +18,7 @@
         <input type="password" id="login-senha" placeholder="Senha" required>
         <button onclick="doLogin()">Entrar</button>
         <p class="toggle">Não tem conta? <a href="#" onclick="showRegister()">Cadastre-se</a></p>
+        <p class="toggle"><a href="#" onclick="showForgot()">Esqueci minha senha</a></p>
       </div>
 
       <div id="register-form" style="display:none">
@@ -29,26 +30,42 @@
         <p class="toggle">Já tem conta? <a href="#" onclick="showLogin()">Entrar</a></p>
       </div>
 
+      <div id="forgot-form" style="display:none">
+        <h3>Esqueci minha senha</h3>
+        <p class="hint">Informe seu e-mail e enviaremos um link para criar uma nova senha. O link vale por 30 minutos.</p>
+        <input type="email" id="forgot-email" placeholder="Email" required>
+        <button onclick="doForgot()">Enviar link de recuperação</button>
+        <p class="toggle"><a href="#" onclick="showLogin()">Voltar para o login</a></p>
+      </div>
+
       <p id="auth-error" class="error"></p>
+      <p id="auth-ok" class="ok"></p>
     </div>
   </div>
 
   <script>
-    function showRegister() {
-      document.getElementById('login-form').style.display = 'none';
-      document.getElementById('register-form').style.display = 'block';
-      document.getElementById('auth-error').textContent = '';
+    function mostrar(form) {
+      ['login', 'register', 'forgot'].forEach((id) => {
+        document.getElementById(id + '-form').style.display = id === form ? 'block' : 'none';
+      });
+      limparAvisos();
     }
-    function showLogin() {
-      document.getElementById('login-form').style.display = 'block';
-      document.getElementById('register-form').style.display = 'none';
+    function limparAvisos() {
       document.getElementById('auth-error').textContent = '';
+      document.getElementById('auth-ok').textContent = '';
+    }
+    function showRegister() { mostrar('register'); }
+    function showLogin() { mostrar('login'); }
+    function showForgot() { mostrar('forgot'); }
+
+    function avisar(erro) {
+      limparAvisos();
+      document.getElementById('auth-error').textContent = erro;
     }
 
     async function doLogin() {
       const email = document.getElementById('login-email').value;
       const senha = document.getElementById('login-senha').value;
-      const errEl = document.getElementById('auth-error');
 
       try {
         const res = await fetch('/api/login', {
@@ -57,18 +74,17 @@
           body: JSON.stringify({ email, senha })
         });
         const data = await res.json();
-        if (!res.ok) { errEl.textContent = data.error; return; }
+        if (!res.ok) { avisar(data.error); return; }
         localStorage.setItem('token', data.token);
         localStorage.setItem('nome', data.nome);
         window.location.href = '/catalog';
-      } catch { errEl.textContent = 'Erro de conexão'; }
+      } catch { avisar('Erro de conexão'); }
     }
 
     async function doRegister() {
       const nome = document.getElementById('reg-nome').value;
       const email = document.getElementById('reg-email').value;
       const senha = document.getElementById('reg-senha').value;
-      const errEl = document.getElementById('auth-error');
 
       try {
         const res = await fetch('/api/register', {
@@ -77,10 +93,28 @@
           body: JSON.stringify({ nome, email, senha })
         });
         const data = await res.json();
-        if (!res.ok) { errEl.textContent = data.error; return; }
-        showLogin();
-        document.getElementById('auth-error').textContent = 'Conta criada! Faça login.';
-      } catch { errEl.textContent = 'Erro de conexão'; }
+        if (!res.ok) { avisar(data.error); return; }
+        mostrar('login');
+        document.getElementById('auth-ok').textContent = 'Conta criada! Faça login.';
+      } catch { avisar('Erro de conexão'); }
+    }
+
+    // O catalogo nao envia e-mail: ele repassa o pedido para o auth-service,
+    // que e o dono da regra e do envio (via SMTP).
+    async function doForgot() {
+      const email = document.getElementById('forgot-email').value;
+
+      try {
+        const res = await fetch('/api/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (!res.ok) { avisar(data.error); return; }
+        mostrar('login');
+        document.getElementById('auth-ok').textContent = data.message;
+      } catch { avisar('Erro de conexão'); }
     }
 
     if (localStorage.getItem('token')) window.location.href = '/catalog';

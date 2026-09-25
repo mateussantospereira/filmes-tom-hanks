@@ -1,16 +1,106 @@
-version: "3.8"
+# =============================================================================
+# CATALOGO DE FILMES — Atividade 3: servicos desacoplados
+# =============================================================================
+# Dois containers, uma rede, UM ponto de entrada publico.
+#
+#   navegador  ->  catalogo (porta 8222, subdominio do aluno)   [publico]
+#                    |
+#                    |  http://auth-service:3000  (rede interna do Docker)
+#                    v
+#              auth-service (SEM ports:)                      [privado]
+#
+# O catalogo e o unico servico com `ports:`. O auth-service nao publica porta
+# no host: ele so existe dentro da rede `interna`, alcancavel pelo nome do
+# servico. Verifique com `docker compose ps` — so o catalogo aparece com porta.
+# =============================================================================
+
+# Os dois servicos apontam para o MESMO MariaDB (externo ao compose, como na
+# atividade 2). O bloco abaixo e um "anchor": e escrito uma vez e reaproveitado
+# nos dois servicos, para as credenciais nao ficarem duplicadas e divergentes.
+x-db: &db
+  DB_HOST: ${DB_HOST}
+  DB_PORT: ${DB_PORT:-3306}
+  DB_USER: ${DB_USER}
+  DB_PASSWORD: ${DB_PASSWORD}
+  DB_NAME: ${DB_NAME}
+
 services:
+  # ---------------------------------------------------------------------------
+  # CATALOGO — o unico container com porta publicada.
+  # Nao tem mais nenhuma logica de autenticacao: ele pergunta ao auth-service.
+  # ---------------------------------------------------------------------------
   app:
     build: .
     ports:
       - "8222:8222"
     environment:
-      - TMDB_API_KEY=${TMDB_API_KEY}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
-      - JWT_SECRET=${JWT_SECRET}
-      - PORT=8222
+      <<: *db
+      TMDB_API_KEY: ${TMDB_API_KEY}
+      # Endereco do auth-service NA rede interna do Docker: nome do servico,
+      # nao IP e nao localhost. Fora desta rede, "auth-service" nao existe.
+      AUTH_SERVICE_URL: http://auth-service:3000
+      PORT: "8222"
+    # Ordem de subida apenas: o catalogo NAO depende do auth-service estar
+    # saudavel para ficar no ar. Se o auth-service cair, o catalogo continua
+    # servindo filmes e so recusa o que exige autenticacao.
+    depends_on:
+      - auth-service
+    networks:
+      - interna
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://localhost:8222/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
     restart: always
+
+  # ---------------------------------------------------------------------------
+  # AUTH-SERVICE — microsservico de autenticacao. NAO tem `ports:`.
+  # Dono de: cadastro, login, papeis (role) e recuperacao de senha.
+  # Fica invisivel para a internet: so o catalogo fala com ele.
+  # ---------------------------------------------------------------------------
+  auth-service:
+    build: ./auth-service
+    # (aqui nao existe `ports:` — e proposital. Sem isso, o servico de
+    #  autenticacao viraria um segundo ponto de entrada publico.)
+    environment:
+      <<: *db
+      NODE_ENV: production
+      PORT: "3000"
+      # O segredo de assinatura do JWT mora AQUI. O catalogo nao tem
+      # JWT_SECRET: ele nem poderia forjar um token, mesmo com acesso ao codigo.
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      # URL publica do CATALOGO: o link de redefinicao volta a entrar por ele,
+      # porque o navegador nao consegue alcançar o auth-service.
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL}
+      RESET_TOKEN_TTL_MINUTES: ${RESET_TOKEN_TTL_MINUTES:-30}
+      # E-mail: em desenvolvimento, Mailtrap (sandbox). Em producao, Brevo.
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USER: ${MAIL_USER}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Catalogo de Filmes}
+    networks:
+      - interna
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: always
+
+# A rede interna que os dois servicos compartilham. O DNS do Docker resolve
+# "app" e "auth-service" dentro dela.
+networks:
+  interna:
+    driver: bridge

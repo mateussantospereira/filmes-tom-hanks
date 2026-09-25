@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nova senha — Catálogo de Filmes</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="auth-container">
+    <h1>🎬 Catálogo de Filmes</h1>
+    <h2>Trocar senha</h2>
+
+    <!--
+      Esta pagina mora no CATALOGO, e nao no auth-service, porque o link veio
+      por e-mail e o navegador so conhece o endereco publico do catalogo.
+      A pagina nao decide nada sobre o token: ela entrega o token ao catalogo,
+      que repassa a validacao para o auth-service por dentro da rede do Docker.
+    -->
+    <div id="reset-box">
+      <div id="form-senha">
+        <p class="hint">Digite a nova senha para a sua conta.</p>
+        <input type="password" id="nova-senha" placeholder="Nova senha" required>
+        <input type="password" id="nova-senha-2" placeholder="Repita a nova senha" required>
+        <button onclick="doReset()">Salvar nova senha</button>
+      </div>
+
+      <div id="form-sucesso" style="display:none">
+        <p class="hint">Senha alterada com sucesso. Faça login com a nova senha.</p>
+        <a class="botao-link" href="/login">Ir para o login</a>
+      </div>
+    </div>
+
+    <p id="reset-error" class="error"></p>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token') || '';
+
+    if (!token) {
+      document.getElementById('form-senha').style.display = 'none';
+      document.getElementById('reset-error').textContent =
+        'Link inválido. Peça um novo link de recuperação de senha.';
+    }
+
+    async function doReset() {
+      const senha = document.getElementById('nova-senha').value;
+      const confirmacao = document.getElementById('nova-senha-2').value;
+      const errEl = document.getElementById('reset-error');
+      errEl.textContent = '';
+
+      if (senha.length < 6) {
+        errEl.textContent = 'A nova senha deve ter no mínimo 6 caracteres';
+        return;
+      }
+      if (senha !== confirmacao) {
+        errEl.textContent = 'As senhas não conferem';
+        return;
+      }
+
+      try {
+        // O catalogo repassa; quem valida expiracao e reuso do link e o auth-service.
+        const res = await fetch('/api/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, novaSenha: senha })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          errEl.textContent = data.error || 'Não foi possível trocar a senha.';
+          return;
+        }
+
+        document.getElementById('form-senha').style.display = 'none';
+        document.getElementById('form-sucesso').style.display = 'block';
+      } catch {
+        errEl.textContent = 'Erro de conexão';
+      }
+    }
+  </script>
+</body>
+</html>

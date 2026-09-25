@@ -1,16 +1,15 @@
 import { defineConfig } from "drizzle-kit";
 
 /**
- * O catalogo e DONO apenas das tabelas `favoritos` e `comentarios`.
- * `usuarios` e `reset_tokens` sao do auth-service e por isso nao entram no
- * schema abaixo. O `tablesFilter` impede que um `db:push` do catalogo tente
- * dropar a tabela `usuarios` (que ele simplesmente nao enxerga).
+ * O auth-service e DONO das tabelas `usuarios` e `reset_tokens`.
+ * O `tablesFilter` garante que este servico nunca vai criar, alterar ou
+ * dropar `favoritos` / `comentarios`, que pertencem ao catalogo.
  */
 export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./drizzle",
   dialect: "mysql",
-  tablesFilter: ["favoritos", "comentarios"],
+  tablesFilter: ["usuarios", "reset_tokens"],
   dbCredentials: {
     host: process.env.DB_HOST!,
     port: Number(process.env.DB_PORT),

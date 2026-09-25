@@ -11,14 +11,10 @@
   "dependencies": {
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.28",
-    "mariadb": "^3.4.0",
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2"
+    "mariadb": "^3.4.0"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
     "@types/bun": "latest",
-    "@types/jsonwebtoken": "^9.0.9",
     "drizzle-kit": "^0.31.10",
     "mysql2": "^3.23.3"
   }

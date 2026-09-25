@@ -5,12 +5,11 @@ if (!token) {
   window.location.href = "/login";
 }
 
-document.getElementById("user-name").textContent = localStorage.getItem("nome") || "Usuário";
-
 let favoriteIds = new Set();
 let allMovies = [];
 let currentTab = "movies";
 let currentMovie = null;
+let eu = { nome: localStorage.getItem("nome") || "Usuário", role: "usuario" };
 
 function formatDate(raw) {
   if (!raw) return "";
@@ -28,12 +27,51 @@ async function api(path, opts = {}) {
       ...opts.headers,
     },
   });
+
+  // 401 = token recusado pelo auth-service: encerra a sessao.
   if (res.status === 401) {
     localStorage.clear();
     window.location.href = "/login";
     return null;
   }
-  return res.json();
+
+  const data = await res.json().catch(() => null);
+
+  // 503 = o auth-service nao respondeu. Nao e caso de deslogar: e o servico de
+  // autenticacao fora do ar, e o catalogo continua no ar servindo o catalogo.
+  if (res.status === 503) {
+    alert(data?.error || "Serviço de autenticação indisponível.");
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Quem sou eu, e qual o meu papel?
+ *
+ * A resposta nao vem do que esta guardado no navegador: o catalogo pergunta ao
+ * auth-service, que e o unico dono dessa informacao. E o papel de admin que
+ * habilita (ou nao) a remocao dos comentarios dos outros usuarios.
+ */
+async function carregarSessao() {
+  const res = await fetch(API + "/api/me", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (res.status === 401) {
+    localStorage.clear();
+    window.location.href = "/login";
+    return;
+  }
+
+  const data = await res.json().catch(() => null);
+  if (data && data.nome) eu = data;
+
+  document.getElementById("user-name").textContent = eu.nome;
+  const badge = document.getElementById("user-role");
+  badge.textContent = eu.role;
+  badge.classList.toggle("admin", eu.role === "admin");
 }
 
 function renderMovies(movies) {
@@ -190,8 +228,28 @@ async function loadComments() {
     div.className = "comment-item";
     const date = formatDate(c.criado_em);
     div.textContent = `${c.texto}${date ? " (" + date + ")" : ""}`;
+
+    // O botao de apagar so aparece para quem pode: o dono do comentario ou o admin.
+    if (eu.role === "admin" || c.usuario_id === eu.usuarioId) {
+      const btn = document.createElement("button");
+      btn.className = "btn-apagar";
+      btn.textContent = "×";
+      btn.title = "Apagar comentário";
+      btn.onclick = () => deleteComment(c.id);
+      div.appendChild(btn);
+    }
+
     list.appendChild(div);
   });
+}
+
+async function deleteComment(id) {
+  const resposta = await api(`/api/comments/${id}`, { method: "DELETE" });
+  if (resposta && resposta.error) {
+    alert(resposta.error);
+    return;
+  }
+  loadComments();
 }
 
 async function saveComment() {
@@ -220,4 +278,5 @@ document.getElementById("modal").addEventListener("click", (e) => {
   if (e.target === document.getElementById("modal")) closeModal();
 });
 
+carregarSessao();
 loadMovies();

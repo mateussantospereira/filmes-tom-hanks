@@ -1,67 +1,75 @@
 import { Hono } from "hono";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { db } from "../db";
-import { usuarios } from "../db/schema";
-import { eq } from "drizzle-orm";
+import type { Context } from "hono";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { authMiddleware } from "../middleware/auth";
+import {
+  esquecerSenha,
+  login,
+  registrar,
+  sessao,
+  trocarSenha,
+  type Resultado,
+} from "../services/auth-service";
 
+/**
+ * Gateway de autenticacao do catalogo.
+ *
+ * O catalogo e o unico container com porta publicada, entao e por ele que o
+ * navegador entra — mas o navegador NUNCA fala com o auth-service, que nao tem
+ * porta nenhuma. Cada rota abaixo e so transporte: repassa a chamada por HTTP
+ * para http://auth-service:3000 e devolve a resposta.
+ *
+ * Repare no que NAO existe aqui: bcrypt, jwt.verify, SQL em `usuarios`, token
+ * de sessao, expiracao de link. Nenhuma regra de autenticacao mora no catalogo.
+ */
 const auth = new Hono();
 
+/** Repassa corpo/status do auth-service, sem inventar regra nova. */
+function repassar(
+  c: Context,
+  resultado: Resultado<unknown>,
+  sucesso: ContentfulStatusCode = 200
+) {
+  if (!resultado.ok) {
+    return c.json({ error: resultado.erro }, resultado.status as ContentfulStatusCode);
+  }
+  return c.json(resultado.dados, sucesso);
+}
+
 auth.post("/register", async (c) => {
-  const { nome, email, senha } = await c.req.json();
-
-  if (!nome || !email || !senha) {
-    return c.json({ error: "Nome, email e senha são obrigatórios" }, 400);
-  }
-
-  const existing = await db
-    .select()
-    .from(usuarios)
-    .where(eq(usuarios.email, email))
-    .limit(1);
-
-  if (existing.length > 0) {
-    return c.json({ error: "Email já cadastrado" }, 409);
-  }
-
-  const senhaHash = await bcrypt.hash(senha, 10);
-  const result = await db
-    .insert(usuarios)
-    .values({ nome, email, senhaHash });
-
-  return c.json({ message: "Conta criada com sucesso" }, 201);
+  const { nome, email, senha } = await c.req.json().catch(() => ({}));
+  return repassar(c, await registrar({ nome, email, senha }), 201);
 });
 
 auth.post("/login", async (c) => {
-  const { email, senha } = await c.req.json();
+  const { email, senha } = await c.req.json().catch(() => ({}));
+  return repassar(c, await login(email, senha));
+});
 
-  if (!email || !senha) {
-    return c.json({ error: "Email e senha são obrigatórios" }, 400);
-  }
+/**
+ * "Quem sou eu?" — inclusive qual o meu papel.
+ * A pagina do catalogo usa isso para mostrar nome e papel sem confiar no que
+ * ficou guardado no localStorage do navegador.
+ */
+auth.get("/me", authMiddleware, async (c) => {
+  const header = c.req.header("Authorization")!;
+  return repassar(c, await sessao(header.slice(7)));
+});
 
-  const rows = await db
-    .select()
-    .from(usuarios)
-    .where(eq(usuarios.email, email))
-    .limit(1);
+auth.post("/forgot-password", async (c) => {
+  const { email } = await c.req.json().catch(() => ({}));
+  return repassar(c, await esquecerSenha(email));
+});
 
-  if (rows.length === 0) {
-    return c.json({ error: "Credenciais inválidas" }, 401);
-  }
-
-  const user = rows[0];
-  const valid = await bcrypt.compare(senha, user.senhaHash);
-  if (!valid) {
-    return c.json({ error: "Credenciais inválidas" }, 401);
-  }
-
-  const token = jwt.sign(
-    { usuarioId: user.id },
-    process.env.JWT_SECRET!,
-    { expiresIn: "24h" }
-  );
-
-  return c.json({ token, nome: user.nome });
+/**
+ * A URL do link de redefinicao chega no catalogo (e nao direto no auth-service,
+ * que nao e publico). O catalogo so repassa o token para o servico dono da
+ * regra — quem decide se o token existe, se expirou e se ja foi usado e o
+ * auth-service.
+ */
+auth.post("/reset-password", async (c) => {
+  const { token, novaSenha } = await c.req.json().catch(() => ({}));
+  return repassar(c, await trocarSenha(token, novaSenha));
 });
 
 export default auth;

@@ -3,12 +3,13 @@ import { db } from "../db";
 import { favoritos } from "../db/schema";
 import { eq, and } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth";
+import type { Env } from "../types";
 
-const favorites = new Hono();
+const favorites = new Hono<Env>();
 favorites.use("/*", authMiddleware);
 
 favorites.get("/", async (c) => {
-  const usuarioId = c.get("usuarioId") as number;
+  const usuarioId = c.get("usuarioId");
   const rows = await db
     .select()
     .from(favoritos)
@@ -17,7 +18,7 @@ favorites.get("/", async (c) => {
 });
 
 favorites.post("/", async (c) => {
-  const usuarioId = c.get("usuarioId") as number;
+  const usuarioId = c.get("usuarioId");
   const { tmdb_movie_id, titulo, poster_path } = await c.req.json();
 
   if (!tmdb_movie_id || !titulo) {
@@ -41,7 +42,7 @@ favorites.post("/", async (c) => {
 });
 
 favorites.delete("/:movieId", async (c) => {
-  const usuarioId = c.get("usuarioId") as number;
+  const usuarioId = c.get("usuarioId");
   const movieId = Number(c.req.param("movieId"));
 
   await db

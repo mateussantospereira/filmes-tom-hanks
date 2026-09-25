@@ -57,6 +57,19 @@ body {
 .toggle { margin-top: 16px; color: var(--muted); }
 .toggle a { color: var(--primary); text-decoration: none; }
 .error { color: var(--primary); margin-top: 12px; min-height: 20px; }
+.ok { color: #4caf50; margin-top: 12px; min-height: 20px; font-size: 0.9rem; }
+.hint { color: var(--muted); font-size: 0.9rem; margin-bottom: 16px; line-height: 1.5; }
+
+.botao-link {
+  display: block;
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--primary);
+  color: white;
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-weight: bold;
+}
 
 header {
   display: flex;
@@ -76,6 +89,23 @@ header h1 { font-size: 1.4rem; }
 }
 
 .header-right span { color: var(--muted); }
+
+/* Papel do usuario, respondido pelo auth-service (nao pelo navegador). */
+.role-badge {
+  padding: 3px 10px;
+  background: #0f3460;
+  border: 1px solid var(--muted);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.role-badge.admin {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
 
 .header-right button {
   padding: 8px 16px;
@@ -254,7 +284,23 @@ header h1 { font-size: 1.4rem; }
   border-radius: var(--radius);
   margin-bottom: 8px;
   font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
+
+.btn-apagar {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.btn-apagar:hover { color: var(--primary); }
 
 .comment-input {
   display: flex;
