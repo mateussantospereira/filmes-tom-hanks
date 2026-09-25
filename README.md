@@ -201,14 +201,35 @@ O envio é real via SMTP (nodemailer) — o e-mail chega na caixa de entrada, n�
 
 | | Desenvolvimento | Produção |
 |---|---|---|
-| Serviço | **Mailtrap** (sandbox) | **Brevo** (envio real, camada gratuita) |
-| Host | `smtp.mailtrap.io` | `smtp-relay.brevo.com` |
+| Serviço | **Mailtrap** (Email Sandbox) | **Brevo** (envio real, camada gratuita) |
+| Host | `smtp.mailtrap.io` (ou `sandbox.smtp.mailtrap.io`) | `smtp-relay.brevo.com` |
 | Porta | `2525` | `587` |
 | Entrega | chega na inbox da sua conta Mailtrap | chega no e-mail real do usuário |
 
+Os dois hosts do Mailtrap são o mesmo serviço e ambos funcionam — a tela do
+sandbox nowadays mostra `sandbox.smtp.mailtrap.io`, mas `smtp.mailtrap.io`
+continua válido. O que é diferente entre eles é o **par usuário/senha**: o
+sandbox tem credenciais próprias, geradas na tela **Settings / Integrations →
+SMTP** do seu sandbox, que *não* são o API token da conta. Token de API não
+funciona como credencial SMTP — dá `535 Invalid credentials`.
+
 O código é o mesmo nas duas: muda só o destino. Para alternar, troque o bloco correspondente no `.env`.
 
-No Mailtrap, o remetente (`MAIL_FROM`) precisa ser um endereço **verificado** na sua conta — se não for, o Mailtrap recusa o envio.
+No sandbox do Mailtrap, o remetente (`MAIL_FROM`) deve ser o endereço que a
+própria tela do sandbox oferece. E-mail de exemplo (`catalogo@exemplo.com`) não
+serve. Se o envio for recusado, o log do container traz o motivo exato do SMTP.
+
+Para conferir as credenciais sem enviar e-mail nenhum (não gasta a cota do
+sandbox), no console do container:
+
+```bash
+docker compose exec auth-service bun -e "
+import nodemailer from 'nodemailer';
+const t = nodemailer.createTransport({host:process.env.MAIL_HOST,port:+process.env.MAIL_PORT,secure:false,auth:{user:process.env.MAIL_USER,pass:process.env.MAIL_PASSWORD}});
+await t.verify();
+console.log('SMTP OK');
+"
+```
 
 ### Passo a passo da demonstração
 
@@ -261,9 +282,13 @@ Existe um script que roda a parte automatizada disso:
 
 ## Deploy no Portainer
 
-### 1. Migration do banco (uma vez, antes de tudo)
+### 1. Migration do banco (só se ela ainda não tiver sido aplicada)
 
-O `auth-service` precisa da coluna `role` em `usuarios` e da tabela `reset_tokens`. O banco de produção ainda está no estado da atividade 2, então isso tem que rodar **antes** do novo stack subir.
+O `auth-service` precisa da coluna `role` em `usuarios` e da tabela `reset_tokens`. **Se o banco já estiver no estado da atividade 3, pule este passo.**
+
+A forma de saber é deployar e olhar o container: o `auth-service` confere o próprio schema no boot, e o `/health` responde `503` se faltar algo. Deploy com o schema errado não quebra nada — o catálogo continua no ar, e só o que depende de sessão dá erro até a migration rodar.
+
+Se o `/health` responder `200`, acabou. Se responder `503`, rode a migration:
 
 Abra o **console do container** `auth-service` no Portainer:
 
