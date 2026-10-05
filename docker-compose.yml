@@ -39,6 +39,9 @@ services:
       # Endereco do auth-service NA rede interna do Docker: nome do servico,
       # nao IP e nao localhost. Fora desta rede, "auth-service" nao existe.
       AUTH_SERVICE_URL: http://auth-service:3000
+      # Teto de espera de cada chamada ao auth-service: um servico travado
+      # devolve 503 em vez de segurar a requisicao do usuario.
+      AUTH_SERVICE_TIMEOUT_MS: ${AUTH_SERVICE_TIMEOUT_MS:-5000}
       PORT: "8222"
     # Ordem de subida apenas: o catalogo NAO depende do auth-service estar
     # saudavel para ficar no ar. Se o auth-service cair, o catalogo continua
