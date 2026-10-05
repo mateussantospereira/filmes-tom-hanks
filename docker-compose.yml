@@ -104,6 +104,12 @@ services:
 
 # A rede interna que os dois servicos compartilham. O DNS do Docker resolve
 # "app" e "auth-service" dentro dela.
+# Subnet explicita evita o erro "all predefined address pools have been fully subnetted"
+# em servidores compartilhados com muitas redes ativas.
 networks:
   interna:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 10.241.55.0/24
+
