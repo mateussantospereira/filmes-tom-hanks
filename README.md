@@ -233,11 +233,19 @@ console.log('SMTP OK');
 
 ### Passo a passo da demonstração
 
-1. Na tela de login, clique em **"Esqueci minha senha"**.
-2. Preencha o e-mail e envie.
-3. **Abra o Mailtrap** (https://mailtrap.io → Inbox). O e-mail chega em segundos, com o botão de redefinição. Print para a atividade.
-4. Clique no link. O navegador abre `/reset-password?token=...` **no catálogo**, com o formulário de nova senha.
-5. Troque a senha e faça login com a nova. **Funcionou.**
+#### 1. Pedido de recuperação de senha no catálogo
+O usuário acessa o formulário **"Esqueci minha senha"** no catálogo e informa seu e-mail cadastrado:
+
+![Pedido de Recuperação de Senha](docs/images/pedido-recuperacao-senha.png)
+
+#### 2. E-mail recebido no Mailtrap (Sandbox)
+O microsserviço de autenticação (`auth-service`) dispara o e-mail via SMTP com o token único de 30 minutos, interceptado com sucesso pelo Mailtrap:
+
+![E-mail Recebido no Mailtrap](docs/images/email-recebido-mailtrap.png)
+
+3. **Clique no link**: O navegador abre `/reset-password?token=...` no catálogo com o formulário de nova senha.
+4. Troque a senha e faça login com a nova. **Funcionou.**
+
 
 Para a **tentativa recusada**, use o mesmo link mais de uma vez:
 
