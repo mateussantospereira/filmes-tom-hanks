@@ -18,11 +18,11 @@
 # atividade 2). O bloco abaixo e um "anchor": e escrito uma vez e reaproveitado
 # nos dois servicos, para as credenciais nao ficarem duplicadas e divergentes.
 x-db: &db
-  DB_HOST: ${DB_HOST}
+  DB_HOST: ${DB_HOST:-35.226.64.52}
   DB_PORT: ${DB_PORT:-3306}
-  DB_USER: ${DB_USER}
-  DB_PASSWORD: ${DB_PASSWORD}
-  DB_NAME: ${DB_NAME}
+  DB_USER: ${DB_USER:-IAC_2026_02_mateus_pereira}
+  DB_PASSWORD: ${DB_PASSWORD:-o1112oo6}
+  DB_NAME: ${DB_NAME:-IAC_2026_02_mateus_pereira}
 
 services:
   # ---------------------------------------------------------------------------
@@ -35,7 +35,7 @@ services:
       - "8222:8222"
     environment:
       <<: *db
-      TMDB_API_KEY: ${TMDB_API_KEY}
+      TMDB_API_KEY: ${TMDB_API_KEY:-00edc4beae3dc8a06a13fc77ced0faa9}
       # Endereco do auth-service NA rede interna do Docker: nome do servico,
       # nao IP e nao localhost. Fora desta rede, "auth-service" nao existe.
       AUTH_SERVICE_URL: http://auth-service:3000
@@ -76,18 +76,18 @@ services:
       PORT: "3000"
       # O segredo de assinatura do JWT mora AQUI. O catalogo nao tem
       # JWT_SECRET: ele nem poderia forjar um token, mesmo com acesso ao codigo.
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:-0ChcWFxPMJjE5Pla7CSpqpKk01iTK3ZoMHuQjkO8QkAuGd1}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
       # URL publica do CATALOGO: o link de redefinicao volta a entrar por ele,
       # porque o navegador nao consegue alcançar o auth-service.
-      APP_PUBLIC_URL: ${APP_PUBLIC_URL}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-https://mateus-pereira-isw055.lapps.studio}
       RESET_TOKEN_TTL_MINUTES: ${RESET_TOKEN_TTL_MINUTES:-30}
       # E-mail: em desenvolvimento, Mailtrap (sandbox). Em producao, Brevo.
-      MAIL_HOST: ${MAIL_HOST}
-      MAIL_PORT: ${MAIL_PORT:-587}
-      MAIL_USER: ${MAIL_USER}
-      MAIL_PASSWORD: ${MAIL_PASSWORD}
-      MAIL_FROM: ${MAIL_FROM}
+      MAIL_HOST: ${MAIL_HOST:-sandbox.smtp.mailtrap.io}
+      MAIL_PORT: ${MAIL_PORT:-2525}
+      MAIL_USER: ${MAIL_USER:-bbdcf182c308d9}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-6319afa2afaa8c}
+      MAIL_FROM: ${MAIL_FROM:-nao-responda@sandbox.mailtrap.io}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Catalogo de Filmes}
     networks:
       - interna
