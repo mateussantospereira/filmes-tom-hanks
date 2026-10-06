@@ -682,6 +682,19 @@ Para rodar a verificação automatizada completa da auditoria:
 CATALOGO_URL=https://mateus-pereira-isw055.lapps.studio ./scripts/demonstrar-auditoria.sh
 ```
 
+### Print da consulta de logs como admin
+
+Com o catálogo aberto como admin (permissão `consultar:logs` no mapa do auth-service), a aba **📋 Auditoria (Logs)** lista os últimos 100 eventos do stream, em ordem cronológica — o mais antigo primeiro:
+
+![Consulta de logs como admin — aba Auditoria (Logs)](docs/images/logs.png)
+
+O que o print mostra:
+
+* **Badge vermelho** = alerta de segurança: `acao_negada` (403 da atividade 4 interceptado) e `login_falhou` (tentativa de login com credenciais inválidas)
+* **Badge verde** = ação normal: `login`, `logout`, `favoritar`, `comentar`, `consultar_logs`
+* **Origem** diz qual serviço reportou: o `auth-service` manda os eventos de sessão (login/logout), o catálogo manda os de conteúdo (favoritar/comentar) — os dois passam pelo `log-service`, que é o único a gravar no Redis Streams
+* A consulta em si também é auditada: um evento `consultar_logs` aparece na leitura **seguinte** — prova de que a ordem do stream está correta, já que uma leitura não pode aparecer antes dela mesma
+
 ---
 
 ## Professor
