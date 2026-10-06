@@ -20,6 +20,7 @@
     <div class="tabs">
       <button class="tab-btn active" data-tab="movies" onclick="switchTab('movies')">🎬 Filmes</button>
       <button class="tab-btn" data-tab="favorites" onclick="switchTab('favorites')">⭐ Favoritos</button>
+      <button class="tab-btn" data-tab="perfil" onclick="switchTab('perfil')">👤 Perfil</button>
       <button class="tab-btn" id="tab-logs-btn" data-tab="logs" onclick="switchTab('logs')" style="display:none">📋 Auditoria (Logs)</button>
     </div>
     <div id="loading">Carregando filmes...</div>
@@ -30,6 +31,10 @@
         <button onclick="carregarLogs()">Atualizar</button>
       </div>
       <div id="logs-list"></div>
+    </div>
+
+    <div id="perfil-container" style="display:none; max-width: 1000px; margin: 0 auto 2rem auto;">
+      <div id="perfil-conteudo"></div>
     </div>
 
     <div id="modal" class="modal" style="display:none">
@@ -65,6 +70,6 @@
     existia no HTML e o script ainda antigo a mantinha escondida).
     Basta subir o numero aqui quando mudar app.js.
   -->
-  <script src="/app.js?v=2"></script>
+  <script src="/app.js?v=3"></script>
 </body>
 </html>

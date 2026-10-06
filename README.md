@@ -697,6 +697,145 @@ O que o print mostra:
 
 ---
 
+## Atividade 6 — Armazenamento de objetos (foto de perfil + MinIO)
+
+Nesta atividade o catálogo vira uma **rede social**: cada usuário ganha uma página de perfil (nome, foto, bio curta e a lista de favoritos — o dado da atividade 2). A **foto** é o centro da novidade: o arquivo vai para um **MinIO** dedicado a este projeto, e o MariaDB guarda **só a referência** (a chave do objeto).
+
+```
+            navegador                     catálogo                     MinIO
+ ┌───────────────────────┐      ┌────────────────────────┐     ┌───────────────┐
+ │   POST /api/perfil/:id/foto  │  valida tipo/tamanho  │     │  bucket privado│
+ │   (multipart, foto.png) ──────►  bytes ────────────────►   │  perfis/       │
+ │                        │      │  (nunca BLOB no DB)  │     │  <id>/avatar-*.png
+ │   GET /api/perfil/:id/foto ◄───┤  lê bytes de volta   ◄─────┤               │
+ └───────────────────────┘      │  ├─ MariaDB: só a      │     └───────────────┘
+                                │  │   chave em `perfis` │
+                                │  └─ favoritos/bio      │
+                                └────────────────────────┘
+```
+
+### A decisão: bucket **privado** com exibição controlada pelo catálogo
+
+O enunciado pede para decidir entre **bucket de leitura pública** (mais simples) ou **URL pré-assinada/temporária** (mais controlada). A escolha aqui foi a **variante mais controlada**, com um ajuste de arquitetura:
+
+* O MinIO **não publica porta** — mesma regra do auth-service e do log-service (atividades 3 e 5). O navegador só conhece o catálogo.
+* O bucket `perfis` é **privado**: nenhum objeto é legível sem credencial.
+* Quem entrega os bytes ao navegador é a rota de leitura **autenticada** `GET /api/perfil/:id/foto` do catálogo — na prática, a "assinatura" da URL é a **sessão** (token JWT válido no header), e a URL expira com ela.
+
+**Trade-off assumido:** um bucket público exigiria expor o MinIO na internet (contradizendo o "um único ponto de entrada" construído nas atividades anteriores), serviria por `http` e quebraria como *mixed content* no site `https`. Uma URL pré-assinada de verdade teria o mesmo problema: ela aponta **para o host do MinIO**, que não existe publicamente. A rota do catálogo dá o mesmo resultado (um link temporário, não-enumerável, com expiração) sem abrir o armazenamento — o binário fica privado e a referência no MariaDB é só a chave.
+
+### Nota importante (out/2026): o MinIO foi arquivado
+
+O MinIO open-source foi **arquivado** em abril/2026 e as imagens oficiais `minio/minio` **saíram dos registries** (Docker Hub e Quay retornam 404; `dl.min.io` devolve 410 Gone). As imagens pré-compiladas que continuam existindo são **reempacotamentos comunitários do mesmo código upstream**. Este projeto usa `elestio/minio` — a mesma imagem que outras disciplinas desta série já usam — correspondente à **última release open-source** (RELEASE.2025-10-15). O servidor continua sendo MinIO de verdade (mesma API S3). A mitigação da CVE conhecida dessa última release é estrutural: o MinIO não publica porta, e a única conversa com ele vem do catálogo, pela rede interna.
+
+### O `docker-compose.yml` com o MinIO adicionado
+
+```yaml
+  # ---------------------------------------------------------------------------
+  # MINIO — object storage da foto de perfil (atividade 6). NAO tem `ports:`.
+  # O arquivo (a foto) mora aqui; no MariaDB fica so a chave. Mesmo principio
+  # do auth-service/log-service: invisivel para a internet, so o catalogo fala
+  # com ele pela rede `interna`.
+  # ---------------------------------------------------------------------------
+  minio:
+    image: elestio/minio:latest
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-isw055-mateus}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-e3316f32df8692e0ee4571fc7524465e}
+    volumes:
+      - minio-data:/data
+    networks:
+      - interna
+    restart: always
+```
+
+E o catálogo (`app`) ganha as variáveis do cliente:
+
+```yaml
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-isw055-mateus}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-e3316f32df8692e0ee4571fc7524465e}
+      MINIO_BUCKET: ${MINIO_BUCKET:-perfis}
+```
+
+* O volume `minio-data` garante que as fotos sobrevivam a `docker compose down/up`.
+* No boot, o catálogo cria o bucket (com retry) sem travar a subida: se o MinIO estiver fora do ar, o catálogo sobe e passa a recusar upload com `503` claro até o armazenamento voltar.
+
+### Migration: a tabela `perfis` (só a referência, nunca o binário)
+
+Como nas atividades anteriores, **não** se usa `db:push` contra o banco de produção. A migration é um arquivo SQL versionado (`sql/atividade-6.sql`) aplicado por script idempotente:
+
+```bash
+bun run db:migrate                            # ambiente local
+bun --env-file=.env.portainer run db:migrate  # contra o banco de produção
+```
+
+```sql
+CREATE TABLE IF NOT EXISTS perfis (
+  usuario_id   INT NOT NULL,
+  bio          TEXT NULL,
+  foto_chave   VARCHAR(255) NULL,     -- a CHAVE do objeto no MinIO
+  atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (usuario_id),
+  CONSTRAINT fk_perfis_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+A foto em si nunca vira BLOB: o MariaDB recebe **apenas a chave do objeto** (`perfis/<id>/avatar-<ts>.ext`, ≤ 255 caracteres). Um avatar inteiro fica no disco do MinIO, e o banco continua leve."
+
+### Upload validado (tipo e tamanho)
+
+A ordem das validações importa — e cada uma recusa antes do custo da próxima:
+
+1. **Dono do perfil** → `403` se o `id` da URL não for o dono do token (regra da atividade 4).
+2. **Content-Type** `image/*` → senão `415`.
+3. **Tamanho ≤ 2 MB** → senão `413`.
+4. **Magic bytes** (PNG `\x89PNG`, JPEG `\xFF\xD8\xFF`, GIF `GIF8`, WebP `RIFF…WEBP`) → senão `415`. Não confiamos no header do navegador: um arquivo renomeado para `.png` é pego pelos bytes.
+
+Só depois disso o binário vai para o MinIO, o **objeto antigo é removido** (o bucket não acumula lixo) e a nova chave entra em `perfis`. A chave é versionada: `perfis/<usuarioId>/avatar-<timestamp>.<ext>` — a URL muda a cada upload, então o navegador nunca mostra foto velha de cache.
+
+### Cada um edita só o próprio perfil (a regra da atividade 4 aplicada a um recurso novo)
+
+O backend **não confia no ID do corpo nem da URL**: a identidade vem do token (resolvida pelo auth-service no `GET /me`). `PATCH /api/perfil/:id` e `POST /api/perfil/:id/foto` comparam `id` com o `usuarioId` da sessão — mandou id de outra pessoa, devolve `403` na borda, sem nem olhar o conteúdo:
+
+```json
+{"error":"Ação negada: você só pode editar o seu próprio perfil.",
+ "permissao_exigida":"editar:perfil-proprio","papel":"usuario",
+ "id_recebido":37,"sua_conta":36}
+```
+
+* **Ver** o perfil de outra pessoa é leitura comum de rede social — qualquer usuário logado pode (`GET /api/perfil/:id`), e o **nome** vem do auth-service por um endpoint novo (`GET /usuarios/:id/perfil-publico`, autenticado, que nunca devolve e-mail). Clicar no autor de um comentário abre o perfil dele.
+* **Editar/fotografar** é exclusivo do dono — os dois `403` acima são também **auditados** automaticamente como `acao_negada` (middleware da atividade 5).
+
+### Auditoria (continuação da atividade 5)
+
+Dois eventos novos entram no mesmo stream do Redis: `editar_perfil` (com nº de caracteres) e `upload_foto` (com formato e tamanho). Os `403` de edição alheia já eram capturados como `acao_negada`.
+
+### Demonstração automatizada
+
+```bash
+./scripts/demonstrar-perfil.sh                  # local
+CATALOGO_URL=https://mateus-pereira-isw055.lapps.studio ./scripts/demonstrar-perfil.sh
+```
+
+O script cria duas contas, monta o perfil de uma (bio + upload da foto `scripts/fixtures/avatar-teste.png`), prova que a foto volta **byte a byte** (md5 idêntico), testa as recusas `415`/`413`, tenta **editar o perfil da outra pessoa** (403, com o perfil dela intacto depois) e confere os eventos `upload_foto`, `editar_perfil` e `acao_negada` no log de auditoria.
+
+### Print do perfil com a foto de upload aparecendo
+
+Com o catálogo aberto (logado como o usuário de demonstração), a aba **👤 Perfil** mostra a página pessoal: avatar com a foto enviada, badge de papel, bio editável e a grade de **favoritos** da atividade 2:
+
+![Perfil com foto de upload no MinIO](docs/images/perfil.png)
+
+O print mostra:
+
+* **Foto de upload de verdade** — o arquivo saiu do disco, passou pelas validações, foi parar no MinIO e voltou pelos bytes serviados pelo catálogo (`GET /api/perfil/:id/foto`), não um link quebrado
+* **Bio salva** e aviso de que o binário não mora no banco
+* **Favoritos da atividade 2** na mesma página — o perfil é a soma do dado novo (foto/bio) com o dado que já existia
+* A tentativa de editar o perfil alheio foi demonstrada no script acima com `403` (`permissao_exigida: "editar:perfil-proprio"`), que também aparece no log de auditoria como `acao_negada`
+
+---
+
 ## Professor
 
 Disciplina ministrada por **@siriani** — <https://github.com/siriani>.

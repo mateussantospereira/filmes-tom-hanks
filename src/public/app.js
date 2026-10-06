@@ -153,31 +153,46 @@ async function loadFavorites() {
   renderMovies(favMovies);
 }
 
-function switchTab(tab) {
+function switchTab(tab, dadosPerfil) {
   currentTab = tab;
   document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
   document.querySelector(`.tab-btn[data-tab="${tab}"]`)?.classList.add("active");
 
   const moviesGrid = document.getElementById("movies-grid");
   const logsContainer = document.getElementById("logs-container");
+  const perfilContainer = document.getElementById("perfil-container");
   const loading = document.getElementById("loading");
 
   if (tab === "movies") {
     if (logsContainer) logsContainer.style.display = "none";
+    if (perfilContainer) perfilContainer.style.display = "none";
     moviesGrid.style.display = "grid";
     loading.style.display = "block";
     moviesGrid.innerHTML = "";
     loadMovies();
   } else if (tab === "favorites") {
     if (logsContainer) logsContainer.style.display = "none";
+    if (perfilContainer) perfilContainer.style.display = "none";
     moviesGrid.style.display = "grid";
     loadFavorites();
   } else if (tab === "logs") {
     moviesGrid.style.display = "none";
     loading.style.display = "none";
+    if (perfilContainer) perfilContainer.style.display = "none";
     if (logsContainer) {
       logsContainer.style.display = "block";
       carregarLogs();
+    }
+  } else if (tab === "perfil") {
+    moviesGrid.style.display = "none";
+    loading.style.display = "none";
+    if (logsContainer) logsContainer.style.display = "none";
+    if (perfilContainer) {
+      perfilContainer.style.display = "block";
+      // Sem parametro = meu perfil. Com parametro = perfil de outra pessoa
+      // (vindo de um clique no autor de um comentario), ja renderizado.
+      if (dadosPerfil) renderPerfil(dadosPerfil, dadosPerfil.meuPerfil);
+      else carregarPerfil();
     }
   }
 }
@@ -265,6 +280,210 @@ async function carregarLogs() {
   });
 }
 
+/**
+ * Atividade 6 — aba de perfil.
+ *
+ * A foto NUNCA vem do banco: `fotoUrl` aponta para /api/perfil/:id/foto, que
+ * o catalogo serve buscando os bytes no MinIO. O MariaDB guarda so a chave.
+ */
+async function carregarPerfil() {
+  const conteudo = document.getElementById("perfil-conteudo");
+  if (!conteudo) return;
+  const res = await api("/api/perfil");
+  if (!res) return;
+  renderPerfil(res, true);
+}
+
+function renderPerfil(d, meuPerfil) {
+  const conteudo = document.getElementById("perfil-conteudo");
+  if (!conteudo) return;
+  while (conteudo.firstChild) conteudo.removeChild(conteudo.firstChild);
+
+  const card = document.createElement("div");
+  card.className = "perfil-card";
+
+  const topo = document.createElement("div");
+  topo.className = "perfil-topo";
+
+  // Avatar: se ha foto, backgroundImage; senao, a inicial do nome.
+  const avatar = document.createElement("div");
+  avatar.className = "perfil-avatar" + (d.fotoUrl ? "" : " sem-foto");
+  avatar.textContent = d.fotoUrl ? "" : (d.nome || "?").trim().charAt(0).toUpperCase();
+  if (d.fotoUrl) avatar.style.backgroundImage = `url("${d.fotoUrl}?ts=${Date.now()}")`;
+  topo.appendChild(avatar);
+
+  const info = document.createElement("div");
+  info.className = "perfil-info";
+
+  const linhaNome = document.createElement("div");
+  linhaNome.style.display = "flex";
+  linhaNome.style.alignItems = "center";
+  linhaNome.style.gap = "10px";
+  linhaNome.style.flexWrap = "wrap";
+
+  const nome = document.createElement("h2");
+  nome.textContent = d.nome;
+  linhaNome.appendChild(nome);
+
+  const badge = document.createElement("span");
+  badge.className = "role-badge" + (d.role === "admin" ? " admin" : "");
+  badge.textContent = d.role;
+  linhaNome.appendChild(badge);
+
+  info.appendChild(linhaNome);
+
+  if (meuPerfil) {
+    const aviso = document.createElement("p");
+    aviso.className = "perfil-aviso";
+    aviso.textContent =
+      "Sua foto não vai para o banco: o arquivo fica no MinIO (object storage) e aqui só a referência.";
+    info.appendChild(aviso);
+
+    const textarea = document.createElement("textarea");
+    textarea.id = "perfil-bio-input";
+    textarea.className = "perfil-bio-input";
+    textarea.maxLength = 300;
+    textarea.placeholder = "Escreva uma bio curta (até 300 caracteres)...";
+    textarea.value = d.bio || "";
+    info.appendChild(textarea);
+
+    const salvar = document.createElement("button");
+    salvar.className = "perfil-salvar";
+    salvar.textContent = "💾 Salvar bio";
+    salvar.onclick = salvarBio;
+    info.appendChild(salvar);
+
+    const rotulo = document.createElement("label");
+    rotulo.className = "perfil-upload";
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/png,image/jpeg,image/gif,image/webp";
+    input.onchange = () => enviarFoto(input);
+    const texto = document.createElement("span");
+    texto.textContent = d.fotoUrl ? "📷 Trocar foto" : "📷 Enviar foto";
+    rotulo.appendChild(input);
+    rotulo.appendChild(texto);
+    rotulo.appendChild(document.createTextNode(" (PNG/JPEG/GIF/WebP, máx 2 MB)"));
+    info.appendChild(rotulo);
+  } else {
+    const bioP = document.createElement("p");
+    bioP.className = "perfil-bio-texto";
+    bioP.textContent = d.bio || "Este usuário ainda não escreveu uma bio.";
+    info.appendChild(bioP);
+
+    const voltar = document.createElement("button");
+    voltar.className = "perfil-voltar";
+    voltar.textContent = "← Voltar ao meu perfil";
+    voltar.onclick = () => switchTab("perfil");
+    info.appendChild(voltar);
+  }
+
+  topo.appendChild(info);
+  card.appendChild(topo);
+
+  const favTitulo = document.createElement("h3");
+  favTitulo.className = "perfil-fav-titulo";
+  favTitulo.textContent = "⭐ Filmes favoritados";
+  card.appendChild(favTitulo);
+
+  const favGrid = document.createElement("div");
+  favGrid.className = "movies-grid";
+
+  if (!d.favoritos || d.favoritos.length === 0) {
+    const vazio = document.createElement("p");
+    vazio.style.gridColumn = "1/-1";
+    vazio.style.textAlign = "center";
+    vazio.style.color = "var(--muted)";
+    vazio.textContent = "Nenhum filme favoritado ainda.";
+    favGrid.appendChild(vazio);
+  } else {
+    d.favoritos.forEach((f) => {
+      const poster = f.posterPath
+        ? `https://image.tmdb.org/t/p/w500${f.posterPath}`
+        : "https://via.placeholder.com/500x750?text=Sem+Pôster";
+      const cartao = document.createElement("div");
+      cartao.className = "movie-card";
+      const img = document.createElement("img");
+      img.src = poster;
+      img.alt = f.titulo;
+      const cardInfo = document.createElement("div");
+      cardInfo.className = "card-info";
+      const titulo = document.createElement("h3");
+      titulo.textContent = f.titulo;
+      cardInfo.appendChild(titulo);
+      cartao.appendChild(img);
+      cartao.appendChild(cardInfo);
+      cartao.onclick = () =>
+        openModal({
+          id: f.tmdbMovieId,
+          title: f.titulo,
+          poster_path: f.posterPath,
+          overview: "",
+          release_date: "",
+          vote_average: null,
+        });
+      favGrid.appendChild(cartao);
+    });
+  }
+  card.appendChild(favGrid);
+
+  conteudo.appendChild(card);
+}
+
+/** Abre a aba Perfil mostrando o perfil de OUTRA pessoa (clique no autor). */
+async function verPerfilDe(usuarioId) {
+  const res = await api(`/api/perfil/${usuarioId}`);
+  if (!res) return;
+  switchTab("perfil", res);
+}
+
+async function salvarBio() {
+  const area = document.getElementById("perfil-bio-input");
+  if (!area) return;
+  const texto = area.value.trim();
+  if (texto.length > 300) {
+    alert("A bio deve ter no máximo 300 caracteres.");
+    return;
+  }
+  const res = await fetch(API + "/api/perfil/" + eu.usuarioId, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ bio: texto }),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    alert(data?.error || "Falha ao salvar a bio.");
+    return;
+  }
+  carregarPerfil();
+}
+
+async function enviarFoto(input) {
+  const arquivo = input.files && input.files[0];
+  if (!arquivo) return;
+  if (!arquivo.type.startsWith("image/")) {
+    alert("Só imagens: PNG, JPEG, GIF ou WebP.");
+    return;
+  }
+  if (arquivo.size > 2 * 1024 * 1024) {
+    alert("A foto deve ter no máximo 2 MB.");
+    return;
+  }
+  const form = new FormData();
+  form.append("foto", arquivo);
+  const res = await fetch(API + "/api/perfil/" + eu.usuarioId + "/foto", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` }, // sem Content-Type: o fetch põe o boundary sozinho
+    body: form,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    alert(data?.error || "Falha no upload da foto.");
+    return;
+  }
+  carregarPerfil();
+}
+
 function openModal(movie) {
   currentMovie = movie;
   const poster = movie.poster_path
@@ -345,9 +564,14 @@ async function loadComments() {
     // tudo como texto mesmo que venha `<svg onload=...>`.
     const textSpan = document.createElement("span");
     if (c.autor) {
-      const autor = document.createElement("strong");
-      autor.textContent = `${c.autor}: `;
+      // Atividade 6: o nome do autor abre o perfil dele (rede social).
+      const autor = document.createElement("button");
+      autor.className = "link-autor";
+      autor.textContent = c.autor;
+      autor.title = "Ver perfil";
+      autor.onclick = () => verPerfilDe(c.usuarioId ?? c.usuario_id);
       textSpan.appendChild(autor);
+      textSpan.appendChild(document.createTextNode(": "));
     }
     textSpan.appendChild(document.createTextNode(c.texto));
     if (date) {

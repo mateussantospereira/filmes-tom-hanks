@@ -327,6 +327,128 @@ header h1 { font-size: 1.4rem; }
   align-self: flex-end;
 }
 
+/* Atividade 6 — perfil do usuario (rede social) */
+.link-autor {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: #7ec8ff;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.link-autor:hover { text-decoration: underline; }
+
+.perfil-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 28px;
+  border: 1px solid #2a3a5c;
+}
+
+.perfil-topo {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.perfil-avatar {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  border: 4px solid var(--primary);
+  background-color: #0f3460;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3.4rem;
+  font-weight: bold;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.perfil-avatar.sem-foto {
+  background: linear-gradient(135deg, #0f3460, #e94560);
+}
+
+.perfil-info {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.perfil-info h2 { font-size: 1.6rem; }
+
+.perfil-aviso {
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: rgba(233, 69, 96, 0.08);
+  border-left: 3px solid var(--primary);
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+.perfil-bio-input {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px;
+  border: none;
+  border-radius: var(--radius);
+  background: #0f3460;
+  color: var(--text);
+  resize: vertical;
+  font-family: inherit;
+}
+
+.perfil-bio-texto {
+  color: var(--text);
+  line-height: 1.6;
+  font-size: 1rem;
+}
+
+.perfil-salvar, .perfil-voltar {
+  align-self: flex-start;
+  padding: 8px 14px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.perfil-voltar {
+  background: #0f3460;
+  border: 1px solid var(--primary);
+}
+
+.perfil-upload {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.perfil-upload span {
+  color: #7ec8ff;
+  font-weight: bold;
+}
+
+.perfil-upload input[type="file"] {
+  display: none;
+}
+
+.perfil-fav-titulo {
+  margin: 28px 0 4px;
+  font-size: 1.1rem;
+}
+
 @media (max-width: 600px) {
   .modal-body { flex-direction: column; }
   .modal-body img { width: 100%; height: 350px; }

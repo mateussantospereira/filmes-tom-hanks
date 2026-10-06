@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../db";
 import { usuarios } from "../db/schema";
-import { exigePermissao } from "../middleware/autorizar";
+import { exigePermissao, autenticado } from "../middleware/autorizar";
 import { registrar, ipDe } from "../services/log-service";
 import type { Papel } from "../auth/permissoes";
 
@@ -114,6 +114,35 @@ usuariosRota.patch("/usuarios/:id/role", exigePermissao("alterar:papel"), async 
     usuario: { id: alvo.id, nome: alvo.nome, role },
     alterado_de: papelAntigo,
   });
+});
+
+/**
+ * GET /usuarios/:id/perfil-publico — quem e a pessoa por tras do perfil.
+ *
+ * Atividade 6: a pagina de perfil mostra o NOME de outros usuarios. Como a
+ * tabela `usuarios` e do auth-service, e aqui que o nome mora — o catalogo
+ * pede por HTTP (mesmo padrao do GET /me), com o token de quem esta logado.
+ *
+ * So autentica (`autenticado`), sem permissao: ver nome de usuario numa rede
+ * social e leitura comum. NUCA devolve e-mail ou senha — so identidade.
+ */
+usuariosRota.get("/usuarios/:id/perfil-publico", autenticado, async (c) => {
+  const id = Number(c.req.param("id"));
+  if (!Number.isInteger(id)) {
+    return c.json({ error: "Usuário inválido" }, 400);
+  }
+
+  const [alvo] = await db
+    .select({ id: usuarios.id, nome: usuarios.nome, role: usuarios.role })
+    .from(usuarios)
+    .where(eq(usuarios.id, id))
+    .limit(1);
+
+  if (!alvo) {
+    return c.json({ error: "Usuário não encontrado" }, 404);
+  }
+
+  return c.json(alvo);
 });
 
 export default usuariosRota;

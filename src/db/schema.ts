@@ -59,3 +59,23 @@ export const comentarios = mysqlTable("comentarios", {
   texto: text("texto").notNull(),
   criadoEm: timestamp("criado_em").defaultNow(),
 });
+
+/**
+ * Atividade 6 — perfil de usuario (bio + foto).
+ *
+ * Esta tabela guarda SO A REFERENCIA da foto: `foto_chave` e a chave do objeto
+ * no MinIO (`perfis/<usuarioId>/avatar-<timestamp>.<ext>`). O binario nunca
+ * entra no MariaDB — a decisao esta documentada no README da atividade 6.
+ *
+ * `usuario_id` e a chave primaria porque o perfil e 1:1 com o usuario, e o id
+ * vem do auth-service (referencia, nao FK de confianca — mesmo padrao de
+ * `favoritos` e `comentarios`).
+ */
+export const perfis = mysqlTable("perfis", {
+  usuarioId: int("usuario_id")
+    .primaryKey()
+    .references(() => usuarios.id),
+  bio: text("bio"),
+  fotoChave: varchar("foto_chave", { length: 255 }),
+  atualizadoEm: timestamp("atualizado_em").defaultNow().onUpdateNow(),
+});

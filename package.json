@@ -5,12 +5,14 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun --watch src/index.ts",
+    "db:migrate": "bun run src/db/migrate.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.28",
+    "minio": "^8.0.7",
     "mysql2": "^3.23.3"
   },
   "devDependencies": {

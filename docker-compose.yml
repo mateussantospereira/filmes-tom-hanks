@@ -45,6 +45,12 @@ services:
       PORT: "8222"
       LOG_SERVICE_URL: ${LOG_SERVICE_URL:-http://log-service:3000}
       LOG_INGEST_TOKEN: ${LOG_INGEST_TOKEN:-}
+      # Atividade 6 — object storage (MinIO) da foto de perfil. O catalogo e o
+      # UNICO container que fala com o MinIO; o navegador nunca.
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-isw055-mateus}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-e3316f32df8692e0ee4571fc7524465e}
+      MINIO_BUCKET: ${MINIO_BUCKET:-perfis}
     # Ordem de subida apenas: o catalogo NAO depende do auth-service estar
     # saudavel para ficar no ar. Se o auth-service cair, o catalogo continua
     # servindo filmes e so recusa o que exige autenticacao.
@@ -153,6 +159,30 @@ services:
       retries: 3
     restart: always
 
+  # ---------------------------------------------------------------------------
+  # MINIO — object storage da foto de perfil (atividade 6). NAO tem `ports:`.
+  # O arquivo (a foto) mora aqui; no MariaDB fica so a chave. Mesmo principio
+  # do auth-service/log-service: invisivel para a internet, so o catalogo fala
+  # com ele pela rede `interna`.
+  #
+  # NOTA (out/2026): o MinIO open-source foi arquivado e as imagens oficiais
+  # `minio/minio` sairam dos registries. Usamos `elestio/minio`, uma imagem
+  # comunitaria pre-compilada da MESMA versao upstream (RELEASE.2025-10-15),
+  # que e a que esta em uso nas outras disciplinas desta serie. Detalhes no
+  # README, secao Atividade 6.
+  # ---------------------------------------------------------------------------
+  minio:
+    image: elestio/minio:latest
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-isw055-mateus}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-e3316f32df8692e0ee4571fc7524465e}
+    volumes:
+      - minio-data:/data
+    networks:
+      - interna
+    restart: always
+
 # A rede interna que os dois servicos compartilham. O DNS do Docker resolve
 # "app" e "auth-service" dentro dela.
 # Subnet explicita evita o erro "all predefined address pools have been fully subnetted"
@@ -163,4 +193,7 @@ networks:
     ipam:
       config:
         - subnet: 10.241.55.0/24
+
+volumes:
+  minio-data:
 

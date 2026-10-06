@@ -169,6 +169,16 @@ export const alterarPapel = (token: string, usuarioId: number, role: Papel) =>
     headers: { Authorization: `Bearer ${token}` },
   });
 
+/**
+ * GET /usuarios/:id/perfil-publico — nome/papel de outro usuario, para a
+ * pagina de perfil (atividade 6). O catalogo passa o token de quem esta
+ * logado; so identidade, nunca e-mail.
+ */
+export const perfilPublico = (token: string, usuarioId: number) =>
+  chamar<{ id: number; nome: string; role: Papel }>(`/usuarios/${usuarioId}/perfil-publico`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
 /** Linha devolvida por GET /usuarios. NUNCA ha `senha_hash` nesta lista. */
 export type UsuarioLista = {
   id: number;

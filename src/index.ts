@@ -6,7 +6,9 @@ import favoritesRoutes from "./routes/favorites";
 import commentsRoutes from "./routes/comments";
 import usuariosRoutes from "./routes/usuarios";
 import logsRoutes from "./routes/logs";
+import perfilRoutes from "./routes/perfil";
 import { auditoria403Middleware } from "./middleware/auditoria";
+import { garantirBucket, MINIO_BUCKET } from "./services/minio";
 
 /**
  * CATALOGO — o unico container com porta publicada.
@@ -29,6 +31,8 @@ app.route("/api/comments", commentsRoutes);
 app.route("/api/usuarios", usuariosRoutes);
 // Atividade 5 — exclusivo de admin: consultar stream de auditoria (Redis).
 app.route("/api/logs", logsRoutes);
+// Atividade 6 — perfil do usuario (bio + foto no object storage).
+app.route("/api/perfil", perfilRoutes);
 
 app.get("/api/*", (c) => c.json({ error: "Rota não encontrada" }, 404));
 
@@ -52,6 +56,23 @@ console.log(
   `[catalogo] ouvindo na porta ${port} — autenticacao delegada para ` +
     `${process.env.AUTH_SERVICE_URL ?? "http://auth-service:3000"}`
 );
+
+// Atividade 6 — garante o bucket do MinIO na subida (com retry, sem travar o
+// boot: se o MinIO estiver fora do ar, o catalogo sobe mesmo assim e passa a
+// recusar upload com 503 ate o bucket reaparecer).
+(async function prepararMinIO() {
+  for (let tentativa = 1; tentativa <= 5; tentativa++) {
+    try {
+      await garantirBucket();
+      console.log(`[catalogo] bucket "${MINIO_BUCKET}" pronto no object storage`);
+      return;
+    } catch (erro) {
+      const motivo = erro instanceof Error ? erro.message : String(erro);
+      console.error(`[catalogo] object storage indisponivel (tentativa ${tentativa}/5): ${motivo}`);
+      await new Promise((resolver) => setTimeout(resolver, 3000));
+    }
+  }
+})();
 
 export default {
   port,
