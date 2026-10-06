@@ -57,6 +57,14 @@
     </div>
   </main>
 
-  <script src="/app.js"></script>
+  <!--
+    ?v=N nao e enfeite: /app.js sai do servidor com cache-control: max-age=10800
+    e o Cloudflare guarda por 3h. Sem um quebra-cache na URL, um deploy novo chega
+    ao navegador so quando o TTL do CDN expira — e nesse meio tempo o HTML e o
+    JavaScript ficam de versoes diferentes (o caso real: a aba de auditoria
+    existia no HTML e o script ainda antigo a mantinha escondida).
+    Basta subir o numero aqui quando mudar app.js.
+  -->
+  <script src="/app.js?v=2"></script>
 </body>
 </html>
