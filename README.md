@@ -505,13 +505,20 @@ docker compose exec app bun -e "fetch('http://auth-service:3000/health').then(r=
 
 ```
 .
-├── docker-compose.yml        dois serviços + a rede interna
+├── docker-compose.yml        quatro serviços + a rede interna
 ├── src/                      container `app` — o catálogo
 │   ├── index.ts
 │   ├── middleware/auth.ts    pergunta ao auth-service quem é o usuário
+│   ├── middleware/permissao.ts  exigePermissao() da atividade 4
+│   ├── middleware/auditoria.ts  intercepta 403 e registra acao_negada (atividade 5)
 │   ├── routes/auth.ts        gateway: só repassa para o auth-service
+│   ├── routes/comments.ts    comentar · apagar (moderação) → emitem eventos
+│   ├── routes/favorites.ts   favoritar · desfavoritar → emitem eventos
+│   ├── routes/logs.ts        GET /api/logs — consulta só-admin (atividade 5)
 │   ├── services/
-│   │   └── auth-service.ts   cliente HTTP do auth-service
+│   │   ├── auth-service.ts   cliente HTTP do auth-service
+│   │   └── log-service.ts    cliente HTTP do log-service (eventos + consulta)
+│   ├── db/                   schema e migrations do catálogo
 │   └── public/               frontend (login, catálogo, /reset-password)
 │
 ├── auth-service/             container `auth-service` — contexto de build próprio
@@ -522,11 +529,31 @@ docker compose exec app bun -e "fetch('http://auth-service:3000/health').then(r=
 │       ├── index.ts
 │       ├── config.ts         variáveis de ambiente, validadas na partida
 │       ├── mail.ts           envio via SMTP
-│       ├── routes/auth.ts    register · login · me
+│       ├── auth/permissoes.ts   o mapa de permissões (RBAC) — único dono
+│       ├── middleware/autorizar.ts  401/403 do próprio auth-service
+│       ├── routes/auth.ts    register · login · me · logout (emite eventos)
 │       ├── routes/password.ts forgot-password · reset-password
-│       └── services/reset-token.ts   gerar · validar · consumir o token
+│       ├── routes/usuarios.ts  listar usuários · alterar papel (emite eventos)
+│       └── services/
+│           ├── reset-token.ts   gerar · validar · consumir o token
+│           └── log-service.ts   cliente HTTP do log-service (eventos)
 │
-└── scripts/verificar-fluxo.sh
+├── log-service/              container `log-service` — contexto de build próprio
+│   ├── Dockerfile
+│   └── src/
+│       ├── index.ts          GET /health
+│       ├── config.ts         variáveis de ambiente, validadas na partida
+│       ├── eventos.ts        formato e validação do evento de auditoria
+│       ├── redis.ts          XADD (MAXLEN ~) · XREVRANGE · /health do Redis
+│       ├── autorizacao.ts    pergunta ao auth-service se tem consultar:logs
+│       └── rotas/
+│           ├── eventos.ts    POST /eventos — porta de entrada da auditoria
+│           └── logs.ts       GET /logs — consulta só-admin (401/403/503)
+│
+└── scripts/
+    ├── verificar-fluxo.sh
+    ├── demonstrar-rbac.sh            atividade 4
+    └── demonstrar-auditoria.sh       atividade 5
 ```
 
 O `auth-service` tem contexto de build próprio: ele **não** está dentro da imagem do catálogo, e o `.dockerignore` da raiz exclui a pasta dele do build do `app`. São duas unidades de deploy separadas, como deve ser.
@@ -558,6 +585,68 @@ Nesta atividade, o sistema ganha um novo microsserviço dedicado à **auditoria 
                                   │ Redis (Streams) │
                                   └─────────────────┘
 ```
+
+### O `docker-compose.yml` com o `log-service` e o `Redis` adicionados
+
+Os dois serviços novos seguem o **mesmo princípio do auth-service da atividade 3: nenhum dos dois publica porta no host**. Quem consulta o log-service é o catálogo, por dentro da rede `interna` — um endpoint público de auditoria seria um serviço expondo "quem fez o quê" para a internet inteira.
+
+```yaml
+  # ---------------------------------------------------------------------------
+  # REDIS — armazenamento do stream de auditoria (atividade 5). NAO tem `ports:`.
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    networks:
+      - interna
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: always
+
+  # ---------------------------------------------------------------------------
+  # LOG-SERVICE — microsservico de auditoria e observabilidade. NAO tem `ports:`.
+  # ---------------------------------------------------------------------------
+  log-service:
+    build: ./log-service
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_STREAM: ${REDIS_STREAM:-auditoria:eventos}
+      REDIS_STREAM_MAXLEN: ${REDIS_STREAM_MAXLEN:-50000}
+      AUTH_SERVICE_URL: http://auth-service:3000
+      PERMISSAO_LEITURA: consultar:logs
+      LOG_INGEST_TOKEN: ${LOG_INGEST_TOKEN:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    networks:
+      - interna
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: always
+```
+
+`redis` e `log-service` **não têm bloco `ports:`** — como no auth-service, `docker compose ps` só mostra o catálogo com porta publicada. Tanto `app` quanto `auth-service` ganharam dois campos para se comunicarem com o novo serviço pela rede interna:
+
+```yaml
+      LOG_SERVICE_URL: ${LOG_SERVICE_URL:-http://log-service:3000}
+      LOG_INGEST_TOKEN: ${LOG_INGEST_TOKEN:-}
+```
+
+`LOG_SERVICE_URL` é o endereço do log-service **dentro da rede do Docker** (nome do serviço, nunca `localhost`), e `LOG_INGEST_TOKEN` é o segredo compartilhado opcional para escrever eventos (header `X-Log-Token`).
 
 ### Por que Redis Streams (`XADD`) em vez de listas (`LPUSH`)
 
