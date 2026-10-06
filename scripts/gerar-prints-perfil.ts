@@ -171,10 +171,10 @@ const htmlTerminal = `<!DOCTYPE html>
     <div class="comentario ultimo"># (GET /me) e compara com o id enviado — id de outra pessoa? 403 na borda, sem olhar o conteúdo.</div>
 
     <div class="paso">PASSO 6 · tentativa (recusada) de editar o perfil de outrem</div>
-    ${linha("comum edita a BIO de outro (PATCH /api/perfil/46)", "403")}
-    ${json403(46, 45)}
-    ${linha("comum envia FOTO para o perfil de outro (POST /api/perfil/46/foto)", "403")}
-    ${json403(46, 45)}
+    ${linha("comum edita a BIO de outro (PATCH /api/perfil/52)", "403")}
+    ${json403(52, 51)}
+    ${linha("comum envia FOTO para o perfil de outro (POST /api/perfil/52/foto)", "403")}
+    ${json403(52, 51)}
     ${linha("bio de outra pessoa segue intacta", "")}
     ${linha("foto de outra pessoa segue ausente", "")}
 
@@ -194,6 +194,13 @@ const htmlTerminal = `<!DOCTYPE html>
 console.log("[prints] gerando perfil-403.png...");
 const t1 = await capturarHtml(htmlTerminal, "docs/images/perfil-403.png");
 console.log(`[prints] perfil-403.png OK (${t1.largura}x${t1.altura})`);
+
+// Pula a parte 2 (screenshot da UI contra produção) quando SO_TERMINAL=1.
+// O print da UI costuma ser tirado pela própria pessoa na conta dela.
+if (process.env.SO_TERMINAL === "1") {
+  console.log("[prints] SO_TERMINAL=1 — pulando o screenshot da UI (perfil.png)");
+  process.exit(0);
+}
 
 // ---------------------------------------------------------------------------
 // 2. Print da UI — aba Perfil contra produção (foto real vinda do MinIO)
