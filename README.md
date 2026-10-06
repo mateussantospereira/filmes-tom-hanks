@@ -235,13 +235,24 @@ E `fail-closed` em todo lugar: se o auth-service não responder, o catálogo **r
 Apagar o comentário de outra pessoa:
 
 ```
-usuario (comum)  DELETE /api/comentarios/<id de outro>   →  403
+usuario (comum)  DELETE /api/comments/<id de outro>   →  403
 {"error":"Ação negada: você só pode apagar os próprios comentários.",
  "permissao_exigida":"apagar:comentario-de-outro", "papel":"usuario"}
 
-admin            DELETE /api/comentarios/<id de outro>   →  200
-{"autorizacao":"permissao:apagar:comentario-de-outro"}
+admin            DELETE /api/comments/<id de outro>   →  200
+{"message":"Comentário removido", "autorizacao":"permissao:apagar:comentario-de-outro"}
 ```
+
+#### Comprovação prática (Prints dos dois casos):
+
+**1. Usuário comum tentando apagar comentário de outro usuário — Recusado com HTTP 403 Forbidden:**
+
+![Usuário Comum Recusado com 403 Forbidden](docs/images/rbac-recusa-403-usuario-comum.png)
+
+**2. Administrador tentando a mesma ação exclusiva — Autorizado com HTTP 200 OK via permissão de moderação:**
+
+![Administrador Autorizado com 200 OK](docs/images/rbac-sucesso-200-admin.png)
+
 
 Resto da grade:
 

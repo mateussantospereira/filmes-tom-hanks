@@ -18,6 +18,9 @@
 # =============================================================================
 set -u
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RAIZ="$(dirname "$SCRIPT_DIR")"
+
 CATALOGO_URL="${CATALOGO_URL:-http://localhost:8222}"
 EMAIL="${EMAIL:-aluno-$(date +%s)@exemplo.com}"
 SENHA_INICIAL="senha-inicial-123"
@@ -181,11 +184,27 @@ elif [ "$FASE" = "rbac" ]; then
 
   # 5. Administrador apaga o comentario de outro usuario -> SUCESSO 200
   TOKEN_ADMIN="${ADMIN_TOKEN:-}"
+  if [ -z "$TOKEN_ADMIN" ]; then
+    EMAIL_ADMIN="admin-fluxo-$(date +%s)@exemplo.com"
+    conferir "cadastro do admin (papel: usuario)" 201 "$CATALOGO_URL/api/register" POST \
+      "{\"nome\":\"Usuario Admin\",\"email\":\"$EMAIL_ADMIN\",\"senha\":\"$SENHA_PADRAO\"}"
+    if [ -f "$RAIZ/.env.portainer" ] && [[ "$CATALOGO_URL" =~ lapps\.studio|https?://[^1l] ]]; then
+      (cd "$RAIZ/auth-service" && bun --env-file="$RAIZ/.env.portainer" run criar-admin "$EMAIL_ADMIN" >/dev/null 2>&1)
+    else
+      (cd "$RAIZ/auth-service" && bun run criar-admin "$EMAIL_ADMIN" >/dev/null 2>&1)
+    fi
+    LOGIN_ADMIN=$(curl -s -m 10 -X POST "$CATALOGO_URL/api/login" \
+      -H 'Content-Type: application/json' \
+      -d "{\"email\":\"$EMAIL_ADMIN\",\"senha\":\"$SENHA_PADRAO\"}")
+    TOKEN_ADMIN=$(echo "$LOGIN_ADMIN" | grep -oE '"token":"[^"]+"' | cut -d'"' -f4)
+  fi
+
   if [ -n "$TOKEN_ADMIN" ]; then
     conferir "administrador apaga comentario de outro usuario (MODERACAO PERMITIDA COM 200 OK)" 200 \
       "$CATALOGO_URL/api/comments/$COMMENT_ID" DELETE "" "$TOKEN_ADMIN"
   else
-    echo "  (Para testar a acao do admin automaticamente: ADMIN_TOKEN=<token> ./scripts/verificar-fluxo.sh rbac)"
+    vermelho "  FALHA nao foi possivel obter o token do administrador"
+    FALHAS=$((FALHAS + 1))
   fi
 else
   vermelho "Fase desconhecida: $FASE (use fase1, fase2 ou rbac)"

@@ -120,8 +120,12 @@ TOKEN_ADMIN=$(printf '%s' "$CORPO" | json token)
 # admin por endpoint seria o mesmo que não ter controle nenhum.
 echo
 printf "  ${AMARELO}...${RESET} promovendo a segunda conta a admin pelo script do auth-service\n"
-PROMOVIDO=$(cd "$RAIZ/auth-service" && bun run criar-admin "$EMAIL_ADMIN" 2>&1)
-if printf '%s' "$PROMOVIDO" | grep -qi "promovido"; then
+if [ -f "$RAIZ/.env.portainer" ] && [[ "$BASE" =~ lapps\.studio|https?://[^1l] ]]; then
+  PROMOVIDO=$(cd "$RAIZ/auth-service" && bun --env-file="$RAIZ/.env.portainer" run criar-admin "$EMAIL_ADMIN" 2>&1)
+else
+  PROMOVIDO=$(cd "$RAIZ/auth-service" && bun run criar-admin "$EMAIL_ADMIN" 2>&1)
+fi
+if printf '%s' "$PROMOVIDO" | grep -qiE "promovido|ja e admin"; then
   printf "  ${VERDE}OK${RESET}   primeiro admin criado pelo script (sem backdoor HTTP)\n"
 else
   printf "  ${VERMELHO}ERRO${RESET} não consegui promover o admin: %s\n" "$PROMOVIDO"
