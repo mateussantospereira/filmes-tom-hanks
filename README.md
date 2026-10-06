@@ -23,6 +23,8 @@ Agora são **dois serviços** que conversam pela rede do Docker:
 
 O que **não** mudou: a URL de acesso, o banco de dados, o nome do stack no Portainer e o frontend. Quem tinha conta continua com conta.
 
+Na **atividade 4** o que mudou foi de dentro do código: `admin` deixou de ser um rótulo que só a interface olhava e virou **permissão verificada no servidor**, tanto que uma chamada feita direto por `curl` — sem interface nenhuma — leva **403**. Ver [Papéis e permissões](#papéis-e-permissões) e [Autorização (RBAC)](#autorização-rbac).
+
 ```
                       internet
                          │
@@ -141,25 +143,129 @@ Assim o `db:push` do auth-service nunca toca em `favoritos` e `comentarios`, que
 
 ---
 
-## Papéis (roles)
+## Papéis e permissões
 
-Dois papéis: **`usuario`** (padrão, atribuído no cadastro) e **`admin`**. Não existe tela de administração nesta atividade — o papel é um dado da conta.
+Dois papéis: **`usuario`** (padrão, atribuído no cadastro) e **`admin`**. Não existe tela de administração — o papel é um dado da conta.
 
-Quando o catálogo precisa saber quem é o usuário, ele pergunta ao auth-service:
+### O que cada papel pode fazer
+
+A atividade pedia que isso fosse **escrito antes de implementado**: uma permissão que ninguém nomeou não dá para conferir depois. Este é o contrato:
+
+| Permissão | O que permite | `usuario` | `admin` |
+|---|---|:-:|:-:|
+| `ler:comentario` | ver os comentários de um filme | ✅ | ✅ |
+| `criar:comentario` | publicar um comentário | ✅ | ✅ |
+| `apagar:comentario` | apagar **o próprio** comentário | ✅ | ✅ |
+| `apagar:comentario-de-outro` | apagar o comentário de **qualquer pessoa** | ❌ | ✅ |
+| `listar:usuarios` | ver a lista de contas do sistema | ❌ | ✅ |
+| `alterar:papel` | promover ou rebaixar outra conta | ❌ | ✅ |
+
+**O que `usuario` pode** é tudo que é dono de si mesmo: ler, comentar, apagar o que escreveu e mexer na própria conta.
+
+**O que `admin` pode além disso** são exatamente três coisas: moderar comentário alheio, enxergar o quadro de contas e trocar o papel de alguém. Não é "admin pode tudo" — `admin` **contém** `usuario` (é um superset, não um conjunto separado), e mesmo um admin não se rebaixa sozinho nem apaga a própria conta.
+
+O mapa inteiro mora em `auth-service/src/auth/permissoes.ts`. É a **única fonte da política**: nenhum outro lugar decide o que um papel pode.
+
+### Como isso chega a quem vai usar
+
+`GET /me` devolve as permissões **já resolvidas**:
 
 ```
-GET /me  →  { "usuarioId": 6, "nome": "Ana", "email": "ana@exemplo.com", "role": "admin" }
+GET /me  →  { "usuarioId": 6, "nome": "Ana", "role": "usuario",
+              "permissoes": ["ler:comentario", "criar:comentario", "apagar:comentario"] }
 ```
 
-O papel vem **do banco**, não de dentro do token. Assim, promover alguém a `admin` tem efeito no request seguinte, sem esperar o token expirar.
+Com isso na mão o catálogo faz `permissoes.includes("apagar:comentario-de-outro")` e **nunca** `role === "admin"`. Essa é a peça que faltava no RBAC: o papel existia, a atribuição existia, mas quem consome a política tem de consumir **permissão**, não o nome do papel.
 
-Para promover alguém:
+O papel vem **do banco**, não de dentro do token — promover alguém tem efeito no request seguinte, sem esperar o token de 24h expirar.
+
+Para promover alguém, na atividade 4, existe o script do auth-service (sem endpoint HTTP, para não virar backdoor):
+
+```bash
+bun run criar-admin voce@exemplo.com
+```
+
+Ou, manualmente:
 
 ```sql
 UPDATE `usuarios` SET `role` = 'admin' WHERE `email` = 'voce@exemplo.com';
 ```
 
-Para ver o efeito: o dono de um comentário pode apagá-lo; um `usuario` que não é dono recebe **403**; um `admin` apaga o comentário de outra pessoa.
+E o efeito: o dono de um comentário apaga o seu; um `usuario` que não é dono recebe **403**; um `admin` apaga o de outra pessoa.
+
+---
+
+## Autorização (RBAC)
+
+Ter `role` no banco não autoriza ninguém: papel é **dado**, permissão é **política**, e só a política decide. RBAC tem quatro peças, e as quatro estão nomeadas no código:
+
+| Peça | Onde está |
+|---|---|
+| Papéis | coluna `role` de `usuarios` (`usuario` e `admin`) |
+| Permissões | `auth-service/src/auth/permissoes.ts` — a **única** fonte da política |
+| Atribuição | o mapa papel → permissões do arquivo acima (`admin` é superset de `usuario`) |
+| Exigência | `exigePermissao()`, rodando **no servidor**, em cada rota protegida |
+
+### A política é aplicada em dois pontos
+
+1. **`auth-service`** — é quem conhece papéis. `listar:usuarios` e `alterar:papel` são conferidos **lá dentro**, antes de qualquer efeito colateral. Um `curl` sem interface nenhuma atravessa o mesmo middleware que a tela.
+2. **Catálogo** — para comentários, dono e permissão são **dois `if` separados**: ser autor do comentário **ou** ter `apagar:comentario-de-outro`. Separar os dois é o que deixa legível *por que* veio 403, e não um `if` amontoado que mistura posse com papel.
+
+Esconder botão não é segurança. A interface não mostra o botão porque `permissoes` não contém a permissão — mas se alguém mandar a chamada na mão, quem decide é o servidor, sempre.
+
+### 401 ou 403
+
+| | Significação | Quando acontece |
+|---|---|---|
+| **401** | *"quem é você?"* | sem token, token inválido ou expirado |
+| **403** | *"sei quem é você, e você não pode"* | token válido, permissão ausente |
+
+E `fail-closed` em todo lugar: se o auth-service não responder, o catálogo **recusa** (503) em vez de deixar passar. Nunca o contrário.
+
+### Demonstração (requisito 4)
+
+`scripts/demonstrar-rbac.sh` faz as **duas logins** e joga as duas na **mesma ação exclusiva**, conferindo só o que o servidor diz:
+
+```bash
+./scripts/demonstrar-rbac.sh
+# ...
+# TODAS AS CONFERENCIAS PASSARAM   (exit 0)
+```
+
+Apagar o comentário de outra pessoa:
+
+```
+usuario (comum)  DELETE /api/comentarios/<id de outro>   →  403
+{"error":"Ação negada: você só pode apagar os próprios comentários.",
+ "permissao_exigida":"apagar:comentario-de-outro", "papel":"usuario"}
+
+admin            DELETE /api/comentarios/<id de outro>   →  200
+{"autorizacao":"permissao:apagar:comentario-de-outro"}
+```
+
+Resto da grade:
+
+| Cenário | Esperado | Obtido |
+|---|:-:|:-:|
+| `usuario` → `GET /api/usuarios` | 403 | 403 |
+| `admin` → `GET /api/usuarios` | 200 | 200 |
+| admin se rebaixar sozinho | 400 | 400 |
+| papel inventado no cadastro | 400 | 400 |
+| requisição sem token | 401 | 401 |
+
+> O script parseia JSON com `bun`, nunca com `grep`: uma versão em `grep` devolvia string vazia para campo numérico (`"usuarioId":29`, sem aspas) e transformava bug do script em bug da API.
+
+### Qual padrão o auth-service usa hoje (requisito 5)
+
+**Padrão A — decisão centralizada.** Quem decide é o auth-service, e o texto do README já diz isso sem rodeio: *"o catálogo não valida mais nada sozinho: para saber quem é o usuário, ele faz uma chamada HTTP"*. É a consequência direta de o catálogo **não** ter mais o `JWT_SECRET` — sem o segredo ele nem poderia ler o token localmente, muito menos extrair uma claim dele. `GET /me` devolve `permissoes` já resolvidas, e é essa chamada que alimenta a interface.
+
+Se mudássemos para o **padrão B** (decisão local a partir de claims do JWT), seriam três mudanças:
+
+1. **Escrever `role`/`permissoes` no payload** do token na hora do login — a claim passa a ser a fonte, não a chamada.
+2. **Trocar a chamada por decodificação local** em `exigePermissao()`: a assinatura confere, lê a claim, decide — zero salto de rede por decisão.
+3. **Aceitar a perda de propagação imediata.** Hoje `UPDATE usuarios SET role = 'admin'` vale no request seguinte; com B, vale quando o token de 24h expirar. Promover alguém passa a demorar até um dia — e **rebaixar também**, que é o lado que custa em segurança: um admin rebaixado continua admin até o token vencer.
+
+A troca ganha latência e perde revogação instantânea. Como o requisito do trabalho é justamente mostrar que a autorização é decidida **no servidor**, e o `403` por `curl` é a prova disso, o padrão A é o que está em uso — e a resposta acima é análise, sem implementação nenhuma, como pedido.
 
 ---
 
