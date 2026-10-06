@@ -25,6 +25,7 @@ FILME=429
 CARIMBO=$(date +%s)
 EMAIL_COMUM="aud-comum-${CARIMBO}@exemplo.com"
 EMAIL_ADMIN="aud-admin-${CARIMBO}@exemplo.com"
+EMAIL_VITIMA="aud-vitima-${CARIMBO}@exemplo.com"
 SENHA="senha-auditoria-${CARIMBO}"
 
 VERDE=$'\033[0;32m'; VERMELHO=$'\033[0;31m'; AMARELO=$'\033[0;33m'
@@ -39,6 +40,19 @@ json() {
     try { dado = JSON.parse(corpo); } catch {}
     const valor = dado[process.env.CHAVE];
     process.stdout.write(valor === undefined || valor === null ? "" : String(valor));
+  '
+}
+
+# O id do comentário vem da LISTAGEM casado com o id do autor — nunca pela
+# posição na resposta (ordem do MySQL não é garantia).
+comentario_de() {
+  printf '%s' "$CORPO" | ALVO="$1" bun -e '
+    const alvo = Number(process.env.ALVO);
+    const corpo = await new Response(process.stdin).text();
+    let lista = [];
+    try { lista = JSON.parse(corpo); } catch {}
+    const achou = (Array.isArray(lista) ? lista : []).find((c) => c.usuarioId === alvo);
+    process.stdout.write(String(achou ? achou.id : ""));
   '
 }
 
@@ -89,6 +103,16 @@ api POST /api/login "" "{\"email\":\"$EMAIL_ADMIN\",\"senha\":\"$SENHA\"}"
 confere "login do futuro admin" 200 "$HTTP_STATUS"
 TOKEN_ADMIN=$(printf '%s' "$CORPO" | json token)
 
+# Terceira conta: a dona do comentario que o comum vai tentar apagar no
+# PASSO 3. Precisa existir de verdade, senao o DELETE responde 404 (recurso
+# inexistente) e nunca chega na checagem de permissao — e 404 nao e 403.
+api POST /api/register "" "{\"nome\":\"Vitima Aud\",\"email\":\"$EMAIL_VITIMA\",\"senha\":\"$SENHA\"}"
+confere "criar conta vítima (dona do alvo)" 201 "$HTTP_STATUS"
+
+api POST /api/login "" "{\"email\":\"$EMAIL_VITIMA\",\"senha\":\"$SENHA\"}"
+confere "login da vítima" 200 "$HTTP_STATUS"
+TOKEN_VITIMA=$(printf '%s' "$CORPO" | json token)
+
 printf "  ${AMARELO}...${RESET} promovendo o admin via script do auth-service\n"
 if [ -f "$RAIZ/.env.portainer" ] && [[ "$BASE" =~ lapps\.studio|https?://[^1l] ]]; then
   PROMOVIDO=$(cd "$RAIZ/auth-service" && bun --env-file="$RAIZ/.env.portainer" run criar-admin "$EMAIL_ADMIN" 2>&1)
@@ -112,13 +136,27 @@ confere "comum favorita um filme" 201 "$HTTP_STATUS"
 api POST /api/comments "$TOKEN_COMUM" "{\"tmdb_movie_id\":$FILME,\"texto\":\"Comentário auditado de teste\"}"
 confere "comum publica um comentário" 201 "$HTTP_STATUS"
 
+# A vítima publica o alvo do PASSO 3 — um comentário que NÃO é do comum.
+api POST /api/comments "$TOKEN_VITIMA" "{\"tmdb_movie_id\":$FILME,\"texto\":\"Comentário alheio de teste\"}"
+confere "vítima publica o comentário alvo" 201 "$HTTP_STATUS"
+
+# O id do alvo vem casado com o autor (usuarioId), nunca pela posição.
+api GET /api/me "$TOKEN_VITIMA"
+ID_VITIMA=$(printf '%s' "$CORPO" | json usuarioId)
+api GET "/api/comments/$FILME" "$TOKEN_COMUM"
+ID_ALVO=$(comentario_de "$ID_VITIMA")
+if [ -z "$ID_ALVO" ]; then
+  printf "  ${VERMELHO}ERRO${RESET} não achei o comentário da vítima (autor=%s)\n" "$ID_VITIMA"
+  FALHAS=$((FALHAS + 1))
+fi
+
 # =============================================================================
 rotulo "PASSO 3 — Usuário comum tenta ações não autorizadas (geram evento acao_negada)"
 # =============================================================================
 api GET /api/usuarios "$TOKEN_COMUM"
 confere "comum tenta listar usuários (recusado 403)" 403 "$HTTP_STATUS"
 
-api DELETE "/api/comments/999999" "$TOKEN_COMUM"
+api DELETE "/api/comments/$ID_ALVO" "$TOKEN_COMUM"
 confere "comum tenta apagar comentário alheio (recusado 403)" 403 "$HTTP_STATUS"
 
 # =============================================================================
