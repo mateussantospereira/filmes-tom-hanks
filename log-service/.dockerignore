@@ -1,0 +1,12 @@
+# Dependencias instaladas na maquina nao devem sobrescrever as do container.
+node_modules
+
+# Segredos e artefatos locais.
+.env
+.env.*
+.git
+*.log
+
+# Coisas que existem no repositorio mas nao sao deste servico.
+Dockerfile
+.dockerignore

@@ -43,6 +43,8 @@ services:
       # devolve 503 em vez de segurar a requisicao do usuario.
       AUTH_SERVICE_TIMEOUT_MS: ${AUTH_SERVICE_TIMEOUT_MS:-5000}
       PORT: "8222"
+      LOG_SERVICE_URL: ${LOG_SERVICE_URL:-http://log-service:3000}
+      LOG_INGEST_TOKEN: ${LOG_INGEST_TOKEN:-}
     # Ordem de subida apenas: o catalogo NAO depende do auth-service estar
     # saudavel para ficar no ar. Se o auth-service cair, o catalogo continua
     # servindo filmes e so recusa o que exige autenticacao.
@@ -89,6 +91,55 @@ services:
       MAIL_PASSWORD: ${MAIL_PASSWORD:-6319afa2afaa8c}
       MAIL_FROM: ${MAIL_FROM:-nao-responda@sandbox.mailtrap.io}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Catalogo de Filmes}
+      LOG_SERVICE_URL: ${LOG_SERVICE_URL:-http://log-service:3000}
+      LOG_INGEST_TOKEN: ${LOG_INGEST_TOKEN:-}
+    networks:
+      - interna
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: always
+
+  # ---------------------------------------------------------------------------
+  # REDIS — armazenamento do stream de auditoria (atividade 5). NAO tem `ports:`.
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    networks:
+      - interna
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: always
+
+  # ---------------------------------------------------------------------------
+  # LOG-SERVICE — microsservico de auditoria e observabilidade. NAO tem `ports:`.
+  # ---------------------------------------------------------------------------
+  log-service:
+    build: ./log-service
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_STREAM: ${REDIS_STREAM:-auditoria:eventos}
+      REDIS_STREAM_MAXLEN: ${REDIS_STREAM_MAXLEN:-50000}
+      AUTH_SERVICE_URL: http://auth-service:3000
+      PERMISSAO_LEITURA: consultar:logs
+      LOG_INGEST_TOKEN: ${LOG_INGEST_TOKEN:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
     networks:
       - interna
     healthcheck:

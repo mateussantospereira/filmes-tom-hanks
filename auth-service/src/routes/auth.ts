@@ -6,6 +6,7 @@ import { db } from "../db";
 import { usuarios } from "../db/schema";
 import { config } from "../config";
 import { permissoesDe } from "../auth/permissoes";
+import { registrar, ipDe } from "../services/log-service";
 
 /**
  * Rotas de autenticacao. Este arquivo existe SO dentro do auth-service —
@@ -72,12 +73,30 @@ auth.post("/login", async (c) => {
   // Mensagem unica para "e-mail nao existe" e "senha errada": nao entregamos a
   // um invasor a informacao de quais e-mails tem conta no sistema.
   if (rows.length === 0) {
+    await registrar({
+      acao: "login_falhou",
+      usuario_id: null,
+      usuario: null,
+      papel: null,
+      recurso: "sessao",
+      detalhe: `email:${email}`,
+      ip: ipDe(c),
+    });
     return c.json({ error: "Credenciais inválidas" }, 401);
   }
 
   const user = rows[0];
   const valid = await bcrypt.compare(String(senha), user.senhaHash);
   if (!valid) {
+    await registrar({
+      acao: "login_falhou",
+      usuario_id: user.id,
+      usuario: user.nome,
+      papel: user.role,
+      recurso: "sessao",
+      detalhe: `email:${email}`,
+      ip: ipDe(c),
+    });
     return c.json({ error: "Credenciais inválidas" }, 401);
   }
 
@@ -87,7 +106,43 @@ auth.post("/login", async (c) => {
     { expiresIn: config.jwt.expiresIn as jwt.SignOptions["expiresIn"] }
   );
 
+  await registrar({
+    acao: "login",
+    usuario_id: user.id,
+    usuario: user.nome,
+    papel: user.role,
+    recurso: "sessao",
+    ip: ipDe(c),
+  });
+
   return c.json({ token, nome: user.nome, role: user.role });
+});
+
+auth.post("/logout", async (c) => {
+  const header = c.req.header("Authorization");
+  let usuarioId: number | null = null;
+  let nome: string | null = null;
+  let papel: string | null = null;
+
+  if (header?.startsWith("Bearer ")) {
+    try {
+      const payload = jwt.verify(header.slice(7), config.jwt.secret) as { sub?: string; nome?: string; role?: string };
+      usuarioId = Number(payload.sub) || null;
+      nome = payload.nome ?? null;
+      papel = payload.role ?? null;
+    } catch {}
+  }
+
+  await registrar({
+    acao: "logout",
+    usuario_id: usuarioId,
+    usuario: nome,
+    papel,
+    recurso: "sessao",
+    ip: ipDe(c),
+  });
+
+  return c.json({ message: "Sessão encerrada" });
 });
 
 /**

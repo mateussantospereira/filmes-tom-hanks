@@ -31,6 +31,8 @@ import {
 
 const app = new Hono();
 
+import { registrar, ipDe } from "./services/log-service";
+
 /** Estado do schema, conferido uma vez no boot (e atualizado no /health). */
 let pendencia: Pendencia | null = null;
 
@@ -54,6 +56,28 @@ app.get("/health", async (c) => {
   }
 
   return c.json({ status: "ok", servico: "auth-service" });
+});
+
+// Atividade 5 — auditoria de ações negadas (HTTP 403) no auth-service
+app.use("*", async (c, next) => {
+  await next();
+  if (c.res.status === 403) {
+    try {
+      const corpo = (await c.res.clone().json().catch(() => null)) as Record<string, unknown> | null;
+      const permissaoExigida = typeof corpo?.permissao_exigida === "string" ? corpo.permissao_exigida : null;
+      const detalheErro = typeof corpo?.error === "string" ? corpo.error : "Ação negada";
+
+      await registrar({
+        acao: "acao_negada",
+        usuario_id: (c.get as any)("usuarioId") ?? null,
+        usuario: (c.get as any)("nome") ?? null,
+        papel: (c.get as any)("role") ?? null,
+        recurso: permissaoExigida ? `${c.req.method} ${c.req.path} (${permissaoExigida})` : `${c.req.method} ${c.req.path}`,
+        detalhe: detalheErro,
+        ip: ipDe(c),
+      });
+    } catch {}
+  }
 });
 
 app.route("/", authRoutes);

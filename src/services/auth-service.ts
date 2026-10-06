@@ -32,7 +32,8 @@ export type Permissao =
   | "apagar:comentario"
   | "apagar:comentario-de-outro"
   | "listar:usuarios"
-  | "alterar:papel";
+  | "alterar:papel"
+  | "consultar:logs";
 
 export type Sessao = {
   usuarioId: number;
@@ -82,11 +83,16 @@ async function chamar<T>(caminho: string, init: RequestInit = {}): Promise<Resul
   return { ok: true, dados: corpo as T };
 }
 
-function post<T>(caminho: string, corpo: unknown, token?: string): Promise<Resultado<T>> {
+function post<T>(
+  caminho: string,
+  corpo: unknown,
+  token?: string,
+  extras?: Record<string, string>
+): Promise<Resultado<T>> {
   return chamar<T>(caminho, {
     method: "POST",
     body: JSON.stringify(corpo),
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(extras ?? {}) },
   });
 }
 
@@ -94,9 +100,37 @@ function post<T>(caminho: string, corpo: unknown, token?: string): Promise<Resul
 export const registrar = (dados: { nome: string; email: string; senha: string }) =>
   post<{ message: string }>("/register", dados);
 
-/** POST /login — devolve o JWT e o papel do usuario. */
-export const login = (email: string, senha: string) =>
-  post<{ token: string; nome: string; role: Papel }>("/login", { email, senha });
+/**
+ * POST /login — devolve o JWT e o papel do usuario.
+ *
+ * `ip` (bonus do requisito 3 da atividade 5) e repassado por `X-Forwarded-For`:
+ * o navegador conhece o catalogo, nao o auth-service, entao sem este header o
+ * evento de login gravaria o IP de um container do Docker em vez do de quem
+ * digitou a senha.
+ */
+export const login = (email: string, senha: string, ip?: string | null) =>
+  post<{ token: string; nome: string; role: Papel }>(
+    "/login",
+    { email, senha },
+    undefined,
+    ip ? { "x-forwarded-for": ip } : undefined
+  );
+
+/**
+ * POST /logout — registra o fim da sessao no log de auditoria.
+ *
+ * O JWT continua valido ate expirar (ele e stateless: nao ha servidor de
+ * sessao para revogar), entao esta rota nao "desloga" ninguem do ponto de vista
+ * de autenticacao — o navegador ja apaga o proprio token. O que ela faz e o que
+ * a atividade 5 pede: deixar o rastro de que a pessoa saiu, na hora em que saiu.
+ */
+export const encerrarSessao = (token: string, ip?: string | null) =>
+  post<{ message: string }>(
+    "/logout",
+    {},
+    token,
+    ip ? { "x-forwarded-for": ip } : undefined
+  );
 
 /**
  * GET /me — "quem e esse usuario?".

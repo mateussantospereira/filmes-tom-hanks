@@ -20,9 +20,17 @@
     <div class="tabs">
       <button class="tab-btn active" data-tab="movies" onclick="switchTab('movies')">🎬 Filmes</button>
       <button class="tab-btn" data-tab="favorites" onclick="switchTab('favorites')">⭐ Favoritos</button>
+      <button class="tab-btn" id="tab-logs-btn" data-tab="logs" onclick="switchTab('logs')" style="display:none">📋 Auditoria (Logs)</button>
     </div>
     <div id="loading">Carregando filmes...</div>
     <div id="movies-grid" class="movies-grid"></div>
+    <div id="logs-container" style="display:none; max-width: 1000px; margin: 0 auto 2rem auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <h2 style="font-size:1.2rem;">📋 Eventos de Auditoria (Redis Streams)</h2>
+        <button onclick="carregarLogs()">Atualizar</button>
+      </div>
+      <div id="logs-list"></div>
+    </div>
 
     <div id="modal" class="modal" style="display:none">
       <div class="modal-content">

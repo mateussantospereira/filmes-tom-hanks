@@ -533,6 +533,69 @@ O `auth-service` tem contexto de build próprio: ele **não** está dentro da im
 
 ---
 
+## Atividade 5 — Observabilidade e Auditoria (log-service + Redis Streams)
+
+Nesta atividade, o sistema ganha um novo microsserviço dedicado à **auditoria e observabilidade**: o `log-service`, conectado a uma instância do **Redis** utilizando **Streams** (`XADD` e `XREVRANGE`).
+
+### Arquitetura de Observabilidade
+
+```
+                     internet
+                        │
+         ┌──────────────▼───────────────┐
+         │  app   (catálogo na 8222)    │  ← único exposto à internet
+         └───────┬──────────────┬───────┘
+                 │              │
+    HTTP /me     │              │ POST /eventos (fail-open)
+                 ▼              ▼
+   ┌─────────────────┐    ┌─────────────────────────────────┐
+   │  auth-service   │    │  log-service (porta 3000 interna│
+   │  (privado)      ├────►  sem ports:, rede interna)      │
+   └─────────────────┘    └────────────────┬────────────────┘
+       POST /eventos                       │ XADD (MAXLEN ~ 50000)
+                                           ▼
+                                  ┌─────────────────┐
+                                  │ Redis (Streams) │
+                                  └─────────────────┘
+```
+
+### Por que Redis Streams (`XADD`) em vez de listas (`LPUSH`)
+
+1. **Ordenação cronológica e IDs temporais nativos:** Cada evento no Stream recebe um ID com timestamp de milissegundos (`<milissegundos>-<sequência>`), garantindo que os eventos nunca sofram inversão de ordem.
+2. **Campos chave-valor estruturados:** O Stream aceita diretamente pares de campo/valor (`acao`, `usuario_id`, `usuario`, `papel`, `recurso`, `detalhe`, `ip`, `origem`, `timestamp`), sem a necessidade de re-parsear payloads opacos.
+3. **Capping aproximado eficiente (`MAXLEN ~ 50000`):** Ao limitar o tamanho com o modificador `~`, o Redis descarta nós inteiros da árvore de rasteio apenas quando oportuno, tornando a gravação de cada log estritamente $O(1)$ sem custo de compactação pesada.
+4. **Pronto para mensageria assíncrona:** Streams oferecem *Consumer Groups* nativos, permitindo que outros microsserviços processem auditoria sem onerar a aplicação principal.
+
+### Decisões de Design e Resiliência
+
+* **Gravação Fail-Open:** O envio de eventos para o `log-service` nunca bloqueia ou falha uma requisição de negócio do usuário. Se o Redis ou o `log-service` estiverem temporariamente indisponíveis, o erro é registrado no log local e a ação (ex: favoritar ou comentar) continua com sucesso.
+* **Leitura Fail-Closed:** Apenas administradores com a permissão `consultar:logs` podem ler os registros via `GET /api/logs`. Sem token ou sem permissão, o acesso é barrado com `401` ou `403`.
+* **Rastreamento de IP e Origem:** O catálogo repassa o IP do cliente (`X-Forwarded-For` ou `CF-Connecting-IP`) e a origem do evento (`catalogo` ou `auth-service`).
+
+### Eventos Auditados
+
+* `login` e `login_falhou` (com detalhe do e-mail tentado)
+* `logout` (sessão voluntariamente encerrada)
+* `favoritar` e `desfavoritar` (filmes)
+* `comentar` e `apagar_comentario`
+* `alterar_papel` (promoção/rebaixamento de usuários)
+* `acao_negada` (interceptação automática de qualquer tentativa bloqueada com HTTP 403)
+
+### Demonstração Prática
+
+Para rodar a verificação automatizada completa da auditoria:
+
+```bash
+# Localmente:
+./scripts/demonstrar-auditoria.sh
+
+# Contra o ambiente de produção:
+CATALOGO_URL=https://mateus-pereira-isw055.lapps.studio ./scripts/demonstrar-auditoria.sh
+```
+
+---
+
 ## Professor
 
 Disciplina ministrada por **@siriani** — <https://github.com/siriani>.
+

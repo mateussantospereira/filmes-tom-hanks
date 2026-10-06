@@ -1,6 +1,7 @@
 # O catalogo e uma unidade de deploy separada do auth-service: o outro servico
 # nao entra no contexto de build deste container.
 auth-service
+log-service
 
 # Dependencias instalado na maquina nao devem sobrescrever as do container.
 node_modules

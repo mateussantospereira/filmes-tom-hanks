@@ -3,6 +3,7 @@ import { eq, desc } from "drizzle-orm";
 import { db } from "../db";
 import { usuarios } from "../db/schema";
 import { exigePermissao } from "../middleware/autorizar";
+import { registrar, ipDe } from "../services/log-service";
 import type { Papel } from "../auth/permissoes";
 
 /**
@@ -97,6 +98,16 @@ usuariosRota.patch("/usuarios/:id/role", exigePermissao("alterar:papel"), async 
 
   const papelAntigo = alvo.role;
   await db.update(usuarios).set({ role: role as Papel }).where(eq(usuarios.id, alvoId));
+
+  await registrar({
+    acao: "alterar_papel",
+    usuario_id: chamadorId,
+    usuario: c.get("nome"),
+    papel: c.get("role"),
+    recurso: `usuario:${alvoId}`,
+    detalhe: `${papelAntigo} -> ${role}`,
+    ip: ipDe(c),
+  });
 
   return c.json({
     message: `Papel de ${alvo.nome} alterado de "${papelAntigo}" para "${role}".`,

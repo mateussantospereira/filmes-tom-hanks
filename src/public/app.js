@@ -72,6 +72,12 @@ async function carregarSessao() {
   const badge = document.getElementById("user-role");
   badge.textContent = eu.role;
   badge.classList.toggle("admin", eu.role === "admin");
+
+  const podeVerLogs = (eu.permissoes ?? []).includes("consultar:logs");
+  const tabLogs = document.getElementById("tab-logs-btn");
+  if (tabLogs) {
+    tabLogs.style.display = podeVerLogs ? "inline-block" : "none";
+  }
 }
 
 function renderMovies(movies) {
@@ -150,15 +156,113 @@ async function loadFavorites() {
 function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-  document.querySelector(`.tab-btn[data-tab="${tab}"]`).classList.add("active");
+  document.querySelector(`.tab-btn[data-tab="${tab}"]`)?.classList.add("active");
+
+  const moviesGrid = document.getElementById("movies-grid");
+  const logsContainer = document.getElementById("logs-container");
+  const loading = document.getElementById("loading");
 
   if (tab === "movies") {
-    document.getElementById("loading").style.display = "block";
-    document.getElementById("movies-grid").innerHTML = "";
+    if (logsContainer) logsContainer.style.display = "none";
+    moviesGrid.style.display = "grid";
+    loading.style.display = "block";
+    moviesGrid.innerHTML = "";
     loadMovies();
-  } else {
+  } else if (tab === "favorites") {
+    if (logsContainer) logsContainer.style.display = "none";
+    moviesGrid.style.display = "grid";
     loadFavorites();
+  } else if (tab === "logs") {
+    moviesGrid.style.display = "none";
+    loading.style.display = "none";
+    if (logsContainer) {
+      logsContainer.style.display = "block";
+      carregarLogs();
+    }
   }
+}
+
+async function carregarLogs() {
+  const list = document.getElementById("logs-list");
+  if (!list) return;
+  while (list.firstChild) list.removeChild(list.firstChild);
+
+  const loadingP = document.createElement("p");
+  loadingP.textContent = "Carregando registros de auditoria...";
+  loadingP.style.color = "var(--muted)";
+  list.appendChild(loadingP);
+
+  const res = await api("/api/logs?limite=100");
+  while (list.firstChild) list.removeChild(list.firstChild);
+
+  if (!res || !Array.isArray(res.eventos) || res.eventos.length === 0) {
+    const emptyP = document.createElement("p");
+    emptyP.textContent = "Nenhum evento registrado ainda.";
+    emptyP.style.color = "var(--muted)";
+    list.appendChild(emptyP);
+    return;
+  }
+
+  res.eventos.forEach((ev) => {
+    const item = document.createElement("div");
+    item.className = "comment-item";
+    item.style.flexDirection = "column";
+    item.style.alignItems = "flex-start";
+    item.style.gap = "4px";
+    item.style.marginBottom = "8px";
+
+    const topRow = document.createElement("div");
+    topRow.style.display = "flex";
+    topRow.style.gap = "8px";
+    topRow.style.alignItems = "center";
+    topRow.style.width = "100%";
+
+    const acaoBadge = document.createElement("span");
+    acaoBadge.className = "role-badge";
+    if (ev.acao === "acao_negada" || ev.acao === "login_falhou") {
+      acaoBadge.style.background = "rgba(239, 68, 68, 0.2)";
+      acaoBadge.style.color = "#f87171";
+    } else {
+      acaoBadge.style.background = "rgba(34, 197, 94, 0.2)";
+      acaoBadge.style.color = "#4ade80";
+    }
+    acaoBadge.textContent = ev.acao || "evento";
+    topRow.appendChild(acaoBadge);
+
+    const timeSpan = document.createElement("span");
+    timeSpan.style.fontSize = "0.8rem";
+    timeSpan.style.color = "var(--muted)";
+    timeSpan.textContent = formatDate(ev.timestamp || ev.criado_em) || (ev.timestamp ?? "");
+    topRow.appendChild(timeSpan);
+
+    if (ev.origem) {
+      const origemSpan = document.createElement("span");
+      origemSpan.style.fontSize = "0.75rem";
+      origemSpan.style.color = "var(--muted)";
+      origemSpan.textContent = `[${ev.origem}]`;
+      topRow.appendChild(origemSpan);
+    }
+
+    item.appendChild(topRow);
+
+    const detailP = document.createElement("p");
+    detailP.style.fontSize = "0.9rem";
+    detailP.style.margin = "0";
+
+    const userStrong = document.createElement("strong");
+    userStrong.textContent = ev.usuario ? `${ev.usuario} (${ev.papel || "usuario"}): ` : `Anônimo: `;
+    detailP.appendChild(userStrong);
+
+    const descText = document.createTextNode(
+      (ev.recurso ? `Recurso: ${ev.recurso}` : "") +
+      (ev.detalhe ? ` | Detalhe: ${ev.detalhe}` : "") +
+      (ev.ip ? ` | IP: ${ev.ip}` : "")
+    );
+    detailP.appendChild(descText);
+
+    item.appendChild(detailP);
+    list.appendChild(item);
+  });
 }
 
 function openModal(movie) {
@@ -296,7 +400,16 @@ async function saveComment() {
   loadComments();
 }
 
-function logout() {
+async function logout() {
+  try {
+    await fetch("/api/logout", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch {}
   localStorage.clear();
   window.location.href = "/login";
 }

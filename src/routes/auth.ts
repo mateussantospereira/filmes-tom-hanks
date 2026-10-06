@@ -2,7 +2,9 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { authMiddleware } from "../middleware/auth";
+import { ipDe } from "../services/log-service";
 import {
+  encerrarSessao,
   esquecerSenha,
   login,
   registrar,
@@ -43,7 +45,12 @@ auth.post("/register", async (c) => {
 
 auth.post("/login", async (c) => {
   const { email, senha } = await c.req.json().catch(() => ({}));
-  return repassar(c, await login(email, senha));
+  return repassar(c, await login(email, senha, ipDe(c)));
+});
+
+auth.post("/logout", authMiddleware, async (c) => {
+  const header = c.req.header("Authorization")!;
+  return repassar(c, await encerrarSessao(header.slice(7), ipDe(c)));
 });
 
 /**

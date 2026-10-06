@@ -22,7 +22,8 @@ export type Permissao =
   | "apagar:comentario"
   | "apagar:comentario-de-outro"
   | "listar:usuarios"
-  | "alterar:papel";
+  | "alterar:papel"
+  | "consultar:logs";
 
 /**
  * Variaveis que o middleware de autenticacao deixa disponiveis para as rotas.

@@ -4,6 +4,7 @@ import { comentarios, usuarios } from "../db/schema";
 import { eq, and } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth";
 import { exigePermissao } from "../middleware/permissao";
+import { registrar, ipDe } from "../services/log-service";
 import type { Env } from "../types";
 
 const comments = new Hono<Env>();
@@ -45,6 +46,16 @@ comments.post("/", exigePermissao("criar:comentario"), async (c) => {
     usuarioId,
     tmdbMovieId: tmdb_movie_id,
     texto,
+  });
+
+  await registrar({
+    acao: "comentar",
+    usuario_id: usuarioId,
+    usuario: c.get("nome"),
+    papel: c.get("role"),
+    recurso: `filme:${tmdb_movie_id}`,
+    detalhe: texto.length > 50 ? `${texto.slice(0, 47)}...` : texto,
+    ip: ipDe(c),
   });
 
   return c.json({ message: "Comentário salvo" }, 201);
@@ -107,6 +118,16 @@ comments.delete("/:id", async (c) => {
   }
 
   await db.delete(comentarios).where(eq(comentarios.id, id));
+
+  await registrar({
+    acao: "apagar_comentario",
+    usuario_id: usuarioId,
+    usuario: c.get("nome"),
+    papel: role,
+    recurso: `comentario:${id}`,
+    detalhe: ehDono ? "autorizacao:dono" : "autorizacao:moderacao",
+    ip: ipDe(c),
+  });
 
   return c.json({
     message: "Comentário removido",

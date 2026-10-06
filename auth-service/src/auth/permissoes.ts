@@ -48,7 +48,17 @@ export type Permissao =
   /** Listar todos os usuarios do sistema e o papel de cada um. EXCLUSIVO de admin. */
   | "listar:usuarios"
   /** Promover ou rebaixar o papel de outro usuario. EXCLUSIVO de admin. */
-  | "alterar:papel";
+  | "alterar:papel"
+  /**
+   * Ler o stream de auditoria (atividade 5). EXCLUSIVO de admin.
+   *
+   * Permissao nova, entao o requisito "mudar o que um admin pode fazer e uma
+   * mudanca num lugar so" e testavel aqui: esta linha mais uma linha abaixo
+   * e TUDO que foi preciso para o log passar a existir como coisa consultavel.
+   * Nenhuma rota do catalogo, nenhuma rota do log-service e nenhum `if` sobre
+   * papel foi mexido — os dois servicos apenas perguntam por este nome.
+   */
+  | "consultar:logs";
 
 /**
  * O que cada papel pode fazer.
@@ -66,6 +76,7 @@ const POR_PAPEL: Record<Papel, readonly Permissao[]> = {
     "apagar:comentario-de-outro",
     "listar:usuarios",
     "alterar:papel",
+    "consultar:logs",
   ],
 } as const;
 

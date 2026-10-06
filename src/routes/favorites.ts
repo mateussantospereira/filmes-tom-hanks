@@ -3,6 +3,7 @@ import { db } from "../db";
 import { favoritos } from "../db/schema";
 import { eq, and } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth";
+import { registrar, ipDe } from "../services/log-service";
 import type { Env } from "../types";
 
 const favorites = new Hono<Env>();
@@ -32,6 +33,17 @@ favorites.post("/", async (c) => {
       titulo,
       posterPath: poster_path || null,
     });
+
+    await registrar({
+      acao: "favoritar",
+      usuario_id: usuarioId,
+      usuario: c.get("nome"),
+      papel: c.get("role"),
+      recurso: `filme:${tmdb_movie_id}`,
+      detalhe: titulo,
+      ip: ipDe(c),
+    });
+
     return c.json({ message: "Filme favoritado" }, 201);
   } catch (err: any) {
     if (err?.cause?.message?.includes("Duplicate")) {
@@ -53,6 +65,15 @@ favorites.delete("/:movieId", async (c) => {
         eq(favoritos.tmdbMovieId, movieId)
       )
     );
+
+  await registrar({
+    acao: "desfavoritar",
+    usuario_id: usuarioId,
+    usuario: c.get("nome"),
+    papel: c.get("role"),
+    recurso: `filme:${movieId}`,
+    ip: ipDe(c),
+  });
 
   return c.json({ message: "Removido dos favoritos" });
 });
