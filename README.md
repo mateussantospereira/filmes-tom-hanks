@@ -721,6 +721,7 @@ O enunciado pede para decidir entre **bucket de leitura pública** (mais simples
 * O MinIO **não publica porta** — mesma regra do auth-service e do log-service (atividades 3 e 5). O navegador só conhece o catálogo.
 * O bucket `perfis` é **privado**: nenhum objeto é legível sem credencial.
 * Quem entrega os bytes ao navegador é a rota de leitura **autenticada** `GET /api/perfil/:id/foto` do catálogo — na prática, a "assinatura" da URL é a **sessão** (token JWT válido no header), e a URL expira com ela.
+* No navegador, a foto **não** entra por `background-image` apontando para a URL: um `<img>`/CSS não mandaria o header `Authorization` e a rota responderia `401`. A página busca os bytes com `fetch(token)` e monta uma **`blob:` URL** no avatar — o header só existe na memória da aba, e a foto nunca vira um link público no DOM.
 
 **Trade-off assumido:** um bucket público exigiria expor o MinIO na internet (contradizendo o "um único ponto de entrada" construído nas atividades anteriores), serviria por `http` e quebraria como *mixed content* no site `https`. Uma URL pré-assinada de verdade teria o mesmo problema: ela aponta **para o host do MinIO**, que não existe publicamente. A rota do catálogo dá o mesmo resultado (um link temporário, não-enumerável, com expiração) sem abrir o armazenamento — o binário fica privado e a referência no MariaDB é só a chave.
 
@@ -819,7 +820,9 @@ Dois eventos novos entram no mesmo stream do Redis: `editar_perfil` (com nº de 
 CATALOGO_URL=https://mateus-pereira-isw055.lapps.studio ./scripts/demonstrar-perfil.sh
 ```
 
-O script cria duas contas, monta o perfil de uma (bio + upload da foto `scripts/fixtures/avatar-teste.png`), prova que a foto volta **byte a byte** (md5 idêntico), testa as recusas `415`/`413`, tenta **editar o perfil da outra pessoa** (403, com o perfil dela intacto depois) e confere os eventos `upload_foto`, `editar_perfil` e `acao_negada` no log de auditoria.
+O script cria duas contas, monta o perfil de uma (bio + upload da foto `scripts/fixtures/avatar-teste.png`), prova que a foto volta **byte a byte** (md5 idêntico), testa as recusas `415`/`413`, tenta **editar o perfil da outra pessoa** (403, com o perfil dela intacto depois) e confere os eventos `upload_foto`, `editar_perfil` e `acao_negada` no log de auditoria:
+
+![Demonstração — recusa de editar o perfil alheio com 403](docs/images/perfil-403.png)
 
 ### Print do perfil com a foto de upload aparecendo
 

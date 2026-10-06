@@ -305,12 +305,27 @@ function renderPerfil(d, meuPerfil) {
   const topo = document.createElement("div");
   topo.className = "perfil-topo";
 
-  // Avatar: se ha foto, backgroundImage; senao, a inicial do nome.
+  // Avatar: se ha foto, busca os bytes COM o token (o navegador nao manda
+  // Authorization em background-image) e monta uma blob URL; senao, inicial.
   const avatar = document.createElement("div");
   avatar.className = "perfil-avatar" + (d.fotoUrl ? "" : " sem-foto");
-  avatar.textContent = d.fotoUrl ? "" : (d.nome || "?").trim().charAt(0).toUpperCase();
-  if (d.fotoUrl) avatar.style.backgroundImage = `url("${d.fotoUrl}?ts=${Date.now()}")`;
+  avatar.textContent = (d.nome || "?").trim().charAt(0).toUpperCase();
+  if (d.fotoUrl) carregarFotoAvatar(avatar, d.fotoUrl);
   topo.appendChild(avatar);
+
+  async function carregarFotoAvatar(avatarEl, fotoUrl) {
+    try {
+      const res = await fetch(API + fotoUrl, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(`foto ${res.status}`);
+      const blob = await res.blob();
+      if (!blob.type.startsWith("image/")) throw new Error("nao-imagem");
+      avatarEl.classList.remove("sem-foto");
+      avatarEl.textContent = "";
+      avatarEl.style.backgroundImage = `url("${URL.createObjectURL(blob)}")`;
+    } catch (erro) {
+      avatarEl.classList.add("sem-foto");
+    }
+  }
 
   const info = document.createElement("div");
   info.className = "perfil-info";
