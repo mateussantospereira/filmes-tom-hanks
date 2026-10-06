@@ -68,8 +68,14 @@
     ao navegador so quando o TTL do CDN expira — e nesse meio tempo o HTML e o
     JavaScript ficam de versoes diferentes (o caso real: a aba de auditoria
     existia no HTML e o script ainda antigo a mantinha escondida).
+
+    PEGADINHA (caso real de out/2026): nunca "pré-aquecer" a URL nova antes do
+    deploy terminar. Subimos ?v=4 e um curl de verificacao bateu na origem AINDA
+    antiga — o Cloudflare cacheou o JS velho sob o nome novo por 3h e a maquina
+    seguiu rodando o script antigo. So se sobe o numero depois que o redeploy
+    confirmou o commit na stack, e conferindo a origem sem o CDN na frente.
     Basta subir o numero aqui quando mudar app.js.
   -->
-  <script src="/app.js?v=4"></script>
+  <script src="/app.js?v=5"></script>
 </body>
 </html>
