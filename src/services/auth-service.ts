@@ -22,11 +22,31 @@ export const MENSAGEM_INDISPONIVEL =
 
 export type Papel = "usuario" | "admin";
 
+/**
+ * Permissao — `acao:recurso`. Declaracao do que o auth-service entrega no
+ * `GET /me`; a decisao de qual papel tem qual permissao e LA, e nunca aqui.
+ */
+export type Permissao =
+  | "ler:comentario"
+  | "criar:comentario"
+  | "apagar:comentario"
+  | "apagar:comentario-de-outro"
+  | "listar:usuarios"
+  | "alterar:papel";
+
 export type Sessao = {
   usuarioId: number;
   nome: string;
   email: string;
   role: Papel;
+  /**
+   * O que este usuario pode fazer, resolvido pelo auth-service.
+   *
+   * E alem do papel, e o ponto da atividade 4: as rotas do catalogo consultam
+   * `permissoes.includes("...")` e nunca `role === "admin"`. Adicionar um
+   * papel novo nao obriga mexer em rota nenhuma daqui.
+   */
+  permissoes: Permissao[];
 };
 
 export type Resultado<T> =
@@ -94,3 +114,32 @@ export const esquecerSenha = (email: string) =>
 /** POST /reset-password — valida o token e troca a senha. */
 export const trocarSenha = (token: string, novaSenha: string) =>
   post<{ message: string }>("/reset-password", { token, novaSenha });
+
+/**
+ * GET /usuarios — lista todos os usuarios e o papel de cada um.
+ * Exige `listar:usuarios`; o auth-service confere de novo do lado dele.
+ */
+export const listarUsuarios = (token: string) =>
+  chamar<{ usuarios: UsuarioLista[]; total: number }>("/usuarios", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+/**
+ * PATCH /usuarios/:id/role — promove ou rebaixa.
+ * Exige `alterar:papel`. Corpo: `{ role: "admin" | "usuario" }`.
+ */
+export const alterarPapel = (token: string, usuarioId: number, role: Papel) =>
+  chamar<{ message: string }>(`/usuarios/${usuarioId}/role`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+/** Linha devolvida por GET /usuarios. NUNCA ha `senha_hash` nesta lista. */
+export type UsuarioLista = {
+  id: number;
+  nome: string;
+  email: string;
+  role: Papel;
+  criadoEm: string | null;
+};

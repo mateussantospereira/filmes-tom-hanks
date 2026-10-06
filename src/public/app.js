@@ -226,15 +226,42 @@ async function loadComments() {
   comments.forEach((c) => {
     const div = document.createElement("div");
     div.className = "comment-item";
-    const date = formatDate(c.criado_em);
-    div.textContent = `${c.texto}${date ? " (" + date + ")" : ""}`;
+    const date = formatDate(c.criadoEm || c.criado_em);
+    const isOwner = (c.usuarioId ?? c.usuario_id) === eu.usuarioId;
 
-    // O botao de apagar so aparece para quem pode: o dono do comentario ou o admin.
-    if (eu.role === "admin" || c.usuario_id === eu.usuarioId) {
+    // A interface esconde o botao pela PERMISSAO devolvida pelo auth-service,
+    // nunca por `role === "admin"`. Esconder botao nao e seguranca: o servidor
+    // confere de novo e responde 403 para quem chamar a API direto.
+    const permissoes = eu.permissoes ?? [];
+    const podeModerar = permissoes.includes("apagar:comentario-de-outro");
+
+    // Nada de innerHTML com conteudo de usuario. `autor` e `texto` vem de fora
+    // (qualquer um digita o que quiser) e innerHTML executaria o que a pessoa
+    // escrever no navegador de quem le. Monta o no com textContent, que trata
+    // tudo como texto mesmo que venha `<svg onload=...>`.
+    const textSpan = document.createElement("span");
+    if (c.autor) {
+      const autor = document.createElement("strong");
+      autor.textContent = `${c.autor}: `;
+      textSpan.appendChild(autor);
+    }
+    textSpan.appendChild(document.createTextNode(c.texto));
+    if (date) {
+      const quando = document.createElement("span");
+      quando.style.fontSize = "0.75rem";
+      quando.style.color = "var(--muted)";
+      quando.textContent = ` (${date})`;
+      textSpan.appendChild(quando);
+    }
+    div.appendChild(textSpan);
+
+    // RBAC: dono apaga o seu; quem tem `apagar:comentario-de-outro` apaga o de
+    // qualquer um. Mesmo que alguem burle a interface, o servidor recusa com 403.
+    if (podeModerar || isOwner) {
       const btn = document.createElement("button");
       btn.className = "btn-apagar";
       btn.textContent = "×";
-      btn.title = "Apagar comentário";
+      btn.title = podeModerar && !isOwner ? "Moderar comentário (Exclusivo de Admin)" : "Apagar meu comentário";
       btn.onclick = () => deleteComment(c.id);
       div.appendChild(btn);
     }

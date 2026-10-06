@@ -26,6 +26,10 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   c.set("usuarioId", resultado.dados.usuarioId);
   c.set("role", resultado.dados.role);
   c.set("nome", resultado.dados.nome);
+  // As permissoes chegam prontas do auth-service: o catalogo nao tem mapa
+  // nenhum de papel -> permissao proprio. E o que faz dele um enforcement
+  // delegado, e nao uma regra de autorizacao reimplementada.
+  c.set("permissoes", resultado.dados.permissoes ?? []);
 
   await next();
 });

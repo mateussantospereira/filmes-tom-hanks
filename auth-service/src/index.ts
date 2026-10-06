@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import authRoutes from "./routes/auth";
 import passwordRoutes from "./routes/password";
+import usuariosRoutes from "./routes/usuarios";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { config } from "./config";
@@ -21,7 +22,10 @@ import {
  *
  * Responsabilidades (todas aqui, e so aqui):
  *   - cadastro e login
- *   - papeis de usuario (role) e o endpoint que responde "quem e esse usuario?"
+ *   - papeis de usuario (role), o mapa de PERMISSOES de cada papel
+ *     (src/auth/permissoes.ts) e o endpoint que responde "quem e esse usuario?"
+ *   - administracao de usuarios (atividade 4): listar e promover/rebaixar,
+ *     com enforcement de permissao no proprio servico
  *   - geracao, envio e validacao do link de recuperacao de senha
  */
 
@@ -54,6 +58,7 @@ app.get("/health", async (c) => {
 
 app.route("/", authRoutes);
 app.route("/", passwordRoutes);
+app.route("/", usuariosRoutes);
 
 app.notFound((c) => c.json({ error: "Rota não encontrada no auth-service" }, 404));
 

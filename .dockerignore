@@ -7,6 +7,7 @@ node_modules
 
 # Segredos e artefatos locais.
 .env
+.env.*
 .git
 .gitignore
 drizzle

@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { usuarios } from "../db/schema";
 import { config } from "../config";
+import { permissoesDe } from "../auth/permissoes";
 
 /**
  * Rotas de autenticacao. Este arquivo existe SO dentro do auth-service —
@@ -134,7 +135,18 @@ auth.get("/me", async (c) => {
 
   const { id, nome, email, role } = rows[0];
 
-  return c.json({ usuarioId: id, nome, email, role });
+  /**
+   * Atividade 4: o `/me` deixou de responder so "quem e voce" e passa a
+   * responder tambem "o que voce pode fazer".
+   *
+   * `permissoes` vem do mapa do auth-service (src/auth/permissoes.ts), que e o
+   * unico lugar onde papel -> permissao e definido. O catalogo recebe a lista
+   * pronta e consulta, sem ter regra nenhuma de autorizacao propria.
+   *
+   * E a diferenca entre entregar o PAPEL (que obriga cada servico a saber o que
+   * cada papel significa) e entregar as PERMISSOES (que so informam o resultado).
+   */
+  return c.json({ usuarioId: id, nome, email, role, permissoes: permissoesDe(role) });
 });
 
 export default auth;

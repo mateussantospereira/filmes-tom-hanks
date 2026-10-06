@@ -4,6 +4,7 @@ import authRoutes from "./routes/auth";
 import moviesRoutes from "./routes/movies";
 import favoritesRoutes from "./routes/favorites";
 import commentsRoutes from "./routes/comments";
+import usuariosRoutes from "./routes/usuarios";
 
 /**
  * CATALOGO — o unico container com porta publicada.
@@ -19,6 +20,8 @@ app.route("/api", authRoutes);
 app.route("/api/movies", moviesRoutes);
 app.route("/api/favorites", favoritesRoutes);
 app.route("/api/comments", commentsRoutes);
+// Atividade 4 — exclusivo de admin: listar usuarios e trocar papel de alguem.
+app.route("/api/usuarios", usuariosRoutes);
 
 app.get("/api/*", (c) => c.json({ error: "Rota não encontrada" }, 404));
 

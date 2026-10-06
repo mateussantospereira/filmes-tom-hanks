@@ -141,8 +141,54 @@ elif [ "$FASE" = "fase2" ]; then
   echo "       espere 1 minuto e tente usar; ou"
   echo "    b) no banco: UPDATE reset_tokens SET expira_em = DATE_SUB(NOW(), INTERVAL 1 MINUTE);"
   echo "       e tente usar o link (a resposta deve ser 'Este link expirou')."
+
+elif [ "$FASE" = "rbac" ]; then
+  titulo "ATIVIDADE 4 — RBAC: controle de acesso por papel"
+  echo "  Catalogo: $CATALOGO_URL"
+
+  EMAIL_AUTOR="autor-$(date +%s)@exemplo.com"
+  EMAIL_COMUM="outro-$(date +%s)@exemplo.com"
+  SENHA_PADRAO="senha-123456"
+
+  # 1. Cadastra o autor do comentario
+  conferir "cadastro do autor do comentario (papel: usuario)" 201 "$CATALOGO_URL/api/register" POST \
+    "{\"nome\":\"Usuario Autor\",\"email\":\"$EMAIL_AUTOR\",\"senha\":\"$SENHA_PADRAO\"}"
+  LOGIN_AUTOR=$(curl -s -m 10 -X POST "$CATALOGO_URL/api/login" \
+    -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$EMAIL_AUTOR\",\"senha\":\"$SENHA_PADRAO\"}")
+  TOKEN_AUTOR=$(echo "$LOGIN_AUTOR" | grep -oE '"token":"[^"]+"' | cut -d'"' -f4)
+
+  # 2. Cadastra outro usuario comum
+  conferir "cadastro de outro usuario comum (papel: usuario)" 201 "$CATALOGO_URL/api/register" POST \
+    "{\"nome\":\"Outro Usuario\",\"email\":\"$EMAIL_COMUM\",\"senha\":\"$SENHA_PADRAO\"}"
+  LOGIN_COMUM=$(curl -s -m 10 -X POST "$CATALOGO_URL/api/login" \
+    -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$EMAIL_COMUM\",\"senha\":\"$SENHA_PADRAO\"}")
+  TOKEN_COMUM=$(echo "$LOGIN_COMUM" | grep -oE '"token":"[^"]+"' | cut -d'"' -f4)
+
+  # 3. Autor publica um comentario no filme 429
+  conferir "autor publica comentario no catalogo" 201 "$CATALOGO_URL/api/comments" POST \
+    '{"tmdb_movie_id":429,"texto":"Comentario original para teste de moderacao RBAC"}' "$TOKEN_AUTOR"
+
+  # Obtem o ID do comentario criado
+  COMMENTS_LIST=$(curl -s -m 10 -H "Authorization: Bearer $TOKEN_AUTOR" "$CATALOGO_URL/api/comments/429")
+  COMMENT_ID=$(echo "$COMMENTS_LIST" | grep -oE '"id":[0-9]+' | tail -1 | cut -d':' -f2)
+  echo "  ID do comentario criado: $COMMENT_ID"
+
+  # 4. Outro usuario comum tenta apagar o comentario do autor -> RECUSA COM 403
+  conferir "usuario comum tenta apagar comentario de outro (RECUSA COM 403 FORBIDDEN)" 403 \
+    "$CATALOGO_URL/api/comments/$COMMENT_ID" DELETE "" "$TOKEN_COMUM"
+
+  # 5. Administrador apaga o comentario de outro usuario -> SUCESSO 200
+  TOKEN_ADMIN="${ADMIN_TOKEN:-}"
+  if [ -n "$TOKEN_ADMIN" ]; then
+    conferir "administrador apaga comentario de outro usuario (MODERACAO PERMITIDA COM 200 OK)" 200 \
+      "$CATALOGO_URL/api/comments/$COMMENT_ID" DELETE "" "$TOKEN_ADMIN"
+  else
+    echo "  (Para testar a acao do admin automaticamente: ADMIN_TOKEN=<token> ./scripts/verificar-fluxo.sh rbac)"
+  fi
 else
-  vermelho "Fase desconhecida: $FASE (use fase1 ou fase2)"
+  vermelho "Fase desconhecida: $FASE (use fase1, fase2 ou rbac)"
   exit 1
 fi
 
