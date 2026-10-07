@@ -3,7 +3,7 @@
 //  ISW055 · Introdução à Computação em Nuvem · Fatec Pompeia · 2026.2
 //
 //  Compilar: typst compile P1_ISW055_template.typ
-//  Saída:    P1_ISW055_Mateus_dos_Santos_Pereira.pdf (renomear para docs/)
+//  Saída:    P1_ISW055_Mateus_dos_Santos_Pereira.pdf
 // ============================================================
 
 // ---------- DADOS DO ALUNO ----------
@@ -35,9 +35,7 @@
   if arquivo == none {
     rect(width: 100%, height: 5.5cm, radius: 4pt, stroke: (paint: luma(170), dash: "dashed"))[
       #align(center + horizon)[
-        #text(fill: luma(130), size: 9.5pt)[
-          print pendente — insira `arquivo: "prints/..."` na ficha da atividade 1
-        ]
+        #text(fill: luma(130), size: 9.5pt)[print pendente — troque `arquivo: none`]
       ]
     ]
   } else {
@@ -115,18 +113,18 @@
 // ============================================================
 = Introdução
 // ============================================================
-A disciplina ISW055 — *Introdução à Computação em Nuvem*, do curso de Tecnologia em Sistemas Inteligentes da Fatec Pompeia, apresenta os fundamentos de desenvolvimento e operação de sistemas distribuídos: microsserviços, contêineres, armazenamento de objetos, autenticação, controle de acesso e observabilidade. O fio condutor do bimestre foi um único projeto que cresceu semana a semana: um catálogo de filmes do ator Tom Hanks, iniciado como uma aplicação simples e evoluído até um sistema composto por vários serviços rodando em contêineres.
+Na disciplina ISW055 — *Introdução à Computação em Nuvem*, da Fatec Pompeia, a gente estuda o básico de como funcionam os sistemas na nuvem: microsserviços, contêineres, banco de dados, autenticação, controle de acesso e logs. O que guiou o bimestre inteiro foi um projeto só: um catálogo de filmes do Tom Hanks, que foi crescendo aos poucos. Começou simples e terminou virando um sistema com vários serviços rodando em contêineres, publicado na internet.
 
-Durante o período foram realizadas seis atividades, começando por um nivelamento em sala (agenda telefônica em Flask) e o próprio catálogo com consumo da API do TMDb e persistência em MariaDB. Em seguida o login foi desacoplado em um microsserviço de autenticação, o controle de acesso foi endurecido com um modelo de permissões por papel (RBAC), foram adicionados logs e auditoria com Redis Streams e, por fim, o perfil do usuário ganhou upload de foto armazenada no MinIO. Todo o código está versionado em um único repositório público no GitHub, publicado também em um ambiente de produção via Docker Compose.
+Foram seis atividades no total. Primeiro fizemos uma agenda bem simples em Flask, em sala, como nivelamento. Depois veio o catálogo de filmes consumindo a API do TMDb e salvando no MariaDB. Na sequência o login foi separado num microsserviço próprio, veio o controle de acesso por perfil (RBAC), os logs e a auditoria, e por último o perfil do usuário com foto salva no MinIO. Tudo ficou no mesmo repositório público do GitHub, com deploy num ambiente de produção.
 
-Este relatório presta contas desse período: apresenta a metodologia usada, um quadro com a data planejada e a data realizada de cada atividade, uma ficha detalhada por entrega com evidências verificáveis (commit, data e hora, e print do resultado) e, ao final, as considerações sobre o que foi aprendido e o que seria feito diferente. O objetivo é documentar, com rastreabilidade e honestidade, o que foi construído e comprovado ao longo do bimestre.
+Este relatório junta tudo isso num documento só: mostra o que era pra ser feito e quando, o que eu realmente entreguei e quando, com uma ficha por atividade trazendo o link da evidência e os prints comprovando. No final escrevo o que aprendi, o que foi mais difícil e o que eu faria diferente.
 
 // ============================================================
 = Metodologia
 // ============================================================
-Todas as atividades foram desenvolvidas no mesmo repositório público do GitHub (`mateussantospereira/filmes-tom-hanks`), como continuação de um único projeto. O ambiente de desenvolvimento usou Bun como runtime, o framework Hono para as APIs, MariaDB como banco relacional, Docker Compose para orquestração local e Portainer para o deploy em produção; o armazenamento de arquivos ficou no MinIO e os logs de auditoria no Redis, consumidos por um serviço dedicado de logs. Cada atividade foi implementada, testada localmente e, quando aplicável, publicada no ambiente de produção usado para as demonstrações.
+Todas as atividades foram feitas no mesmo repositório público do GitHub (`mateussantospereira/filmes-tom-hanks`), como continuação do mesmo projeto. Para programar usei Bun e o framework Hono nas APIs, o banco era MariaDB, os serviços rodavam em Docker Compose e o deploy era feito pelo Portainer. Os arquivos de upload foram para o MinIO e os logs de auditoria para o Redis, lidos por um serviço de logs separado. Cada atividade eu testava na minha máquina e, quando possível, publicava no ambiente de produção usado nas demonstrações (`https://mateus-pereira-isw055.lapps.studio`).
 
-A data e a hora de cada entrega foram extraídas do histórico de commits do repositório com `git log --format="%h %ad"` (formato DD/MM/AAAA HH:MM) e conferidas na página do commit no GitHub. Para cada atividade, o relatório traz duas evidências complementares: um print de terminal com o comando `git log` (hash, data/hora e repositório) e a captura da página do commit no GitHub; além do print do resultado do sistema em execução. Os serviços são públicos em `https://mateus-pereira-isw055.lapps.studio`, e o README do repositório documenta cada atividade e menciona o professor (`github.com/siriani`).
+As datas e horas de cada entrega foram tiradas do histórico de commits do repositório com o comando `git log` (no formato DD/MM/AAAA HH:MM) e conferidas na página de cada commit no GitHub. Para cada atividade o relatório traz duas provas: um print do terminal com o `git log` (mostrando o hash, a data/hora e o repositório) e o print da própria página do commit no GitHub — além do print do sistema funcionando. O README do repositório documenta cada atividade, mostra a arquitetura e menciona o professor (`github.com/siriani`).
 
 // ============================================================
 = Quadro de entregas
@@ -157,11 +155,11 @@ A data e a hora de cada entrega foram extraídas do histórico de commits do rep
   evidencia: "Realizada em sala — print do sistema rodando localmente",
   url: "",
 )[
-  *O que foi feito.* A primeira atividade foi um nivelamento em sala de aula: uma agenda telefônica simples em Flask com templates Jinja, permitindo cadastrar, listar, editar e remover contatos. Como era um exercício de ambientação, a persistência foi mantida propositalmente leve — sem banco de dados, os contatos eram guardados no `localStorage` do navegador. O objetivo era familiarizar a turma com o padrão rota → função → template e com o loop de edição/execução em Python antes de começar o projeto principal.
+  *O que foi feito.* A primeira atividade foi um nivelamento em sala: uma agenda telefônica bem simples em Flask com templates Jinja, onde dá para cadastrar, listar, editar e remover contatos. Não tinha banco de dados — os contatos ficavam no `localStorage` do navegador, de propósito. Era só para a turma se acostumar com o padrão rota → função → template antes de começar o projeto grande.
 
-  #evidencia([Atividade 1 — evidência da entrega (print do sistema rodando — pendente)])
+  #evidencia([Atividade 1 — resultado: agenda telefônica em Flask rodando], arquivo: "prints/resultado-atv1-agenda.png")
 
-  *Dificuldades e como foram resolvidas.* Por ser um nivelamento, não houve dificuldade técnica relevante; o código não foi versionado no GitHub na ocasião, apenas executado em sala. O print de comprovação do sistema rodando ficou pendente e será anexado a esta ficha assim que recuperado.
+  *Dificuldades e como foram resolvidas.* Não teve dificuldade técnica, era um nivelamento. O código não foi para o GitHub na época, só rodou em sala, e o print de comprovação é o que está acima.
 ]
 
 #atividade(
@@ -173,13 +171,13 @@ A data e a hora de cada entrega foram extraídas do histórico de commits do rep
   evidencia: "GitHub — commit + README + print do catálogo",
   url: "https://github.com/mateussantospereira/filmes-tom-hanks/commit/c795793",
 )[
-  *O que foi feito.* Foi criado o repositório do projeto e o catálogo de filmes do Tom Hanks: a aplicação consome a API do TMDb para buscar e listar os filmes do ator, persiste os dados no MariaDB e oferece uma área logada em que cada usuário tem seus próprios favoritos (segregação por usuário). O docker-compose foi montado para rodar aplicação e banco juntos, com deploy via Portainer. O README documenta a arquitetura, o uso e o endereço de produção, e menciona o professor.
+  *O que foi feito.* Criei o repositório e o catálogo de filmes do Tom Hanks: a aplicação busca os filmes na API do TMDb, guarda os dados no MariaDB e tem uma área logada onde cada usuário tem os próprios favoritos (segregação por usuário). Montei também o docker-compose para a aplicação e o banco rodarem juntos, com deploy via Portainer. O README documenta a arquitetura, o uso e o endereço de produção, e menciona o professor.
 
   #evidencia([Atividade 2 — evidência: commit `c795793` (terminal, 18/08/2026 17:48)], arquivo: "prints/evidencia-atv2-terminal.png")
   #evidencia([Atividade 2 — evidência: página do commit no GitHub], arquivo: "prints/evidencia-atv2-commit.png")
   #evidencia([Atividade 2 — resultado: catálogo logado em produção], arquivo: "prints/resultado-atv2-catalogo.png")
 
-  *Dificuldades e como foram resolvidas.* A primeira montagem do ambiente (binários, dependências e rede do Docker) consumiu ajustes no Dockerfile; a solução foi isolar o lockfile e o compose em commits dedicados para o build ficar determinístico e reproduzível no Portainer.
+  *Dificuldades e como foram resolvidas.* A primeira montagem do ambiente deu trabalho: dependências e a rede do Docker. Resolvi separando o lockfile e o compose em commits próprios, para o build ficar determinístico e repetível no Portainer.
 ]
 
 #atividade(
@@ -191,7 +189,7 @@ A data e a hora de cada entrega foram extraídas do histórico de commits do rep
   evidencia: "GitHub — commit + docker-compose.yml + print do login funcionando",
   url: "https://github.com/mateussantospereira/filmes-tom-hanks/commit/d08ced9",
 )[
-  *O que foi feito.* A autenticação foi extraída do catálogo para um serviço à parte (`auth-service`), que passou a ser o único dono da tabela de usuários e da lógica de senha, JWT e papel. O catálogo virou um gateway: as rotas de login, cadastro, `esqueci minha senha` e `reset` repassam a chamada ao auth-service pela rede interna do Docker (`AUTH_SERVICE_URL`). O fluxo de recuperação de senha envia um e-mail real via Mailtrap, e o docker-compose.yml documenta os dois serviços e suas dependências.
+  *O que foi feito.* Extraí a autenticação do catálogo para um serviço separado (`auth-service`), que passou a ser o único dono da tabela de usuários e da lógica de senha, JWT e papel. O catálogo virou um gateway: as rotas de login, cadastro, `esqueci minha senha` e reset só repassam a chamada para o auth-service pela rede interna do Docker (`AUTH_SERVICE_URL`). A recuperação de senha envia e-mail de verdade pelo Mailtrap, e o docker-compose.yml documenta os dois serviços.
 
   #evidencia([Atividade 3 — evidência: commit `d08ced9` (terminal, 25/09/2026 16:21)], arquivo: "prints/evidencia-atv3-terminal.png")
   #evidencia([Atividade 3 — evidência: página do commit no GitHub], arquivo: "prints/evidencia-atv3-commit.png")
@@ -199,7 +197,7 @@ A data e a hora de cada entrega foram extraídas do histórico de commits do rep
   #evidencia([Atividade 3 — resultado: e-mail de recuperação de senha (Mailtrap)], arquivo: "prints/resultado-atv3-mailtrap.png")
   #evidencia([Atividade 3 — resultado: fluxo de redefinição de senha], arquivo: "prints/resultado-atv3-recuperacao.png")
 
-  *Dificuldades e como foram resolvidas.* Sincronizar dois serviços em uma rede interna sem expor o auth-service para fora exigiu cuidar da variável `AUTH_SERVICE_URL` (nome do serviço, não `localhost`) e de timeouts para não segurar requisições do usuário com o serviço travado. O ajuste fino dos defaults de produção e das dependências (`mysql2`) foi concluído na semana seguinte à implementação principal, o que atrasou a entrega em relação à data planejada.
+  *Dificuldades e como foram resolvidas.* Sincronizar dois serviços numa rede interna sem expor o auth-service para fora exigiu cuidado com a variável `AUTH_SERVICE_URL` (nome do serviço, não `localhost`) e com timeouts, para não travar a requisição do usuário. Os ajustes finos dos defaults e das dependências ficaram para a semana seguinte, o que atrasou a entrega.
 ]
 
 #atividade(
@@ -211,14 +209,14 @@ A data e a hora de cada entrega foram extraídas do histórico de commits do rep
   evidencia: "GitHub — commit + print do 403 e da ação de admin",
   url: "https://github.com/mateussantospereira/filmes-tom-hanks/commit/d83b05d",
 )[
-  *O que foi feito.* O campo `role` deixou de ser decorativo e passou a decidir permissões no servidor: foi criado um mapa explícito de permissões (`auth-service/src/auth/permissoes.ts`), com `admin` como superconjunto de `usuario` e decisão sempre *fail-closed*. `GET /me` devolve as permissões resolvidas, e o catálogo verifica `permissoes.includes(...)` em vez de comparar `role === "admin"`. Ações exclusivas de admin (apagar comentário de terceiro, listar usuários, alterar papel) negam com 403 para usuário comum; um bug de XSS armazenado em comentários também foi corrigido trocando `innerHTML` por `textContent`.
+  *O que foi feito.* O campo `role` deixou de ser só enfeite e passou a valer de verdade no servidor: criei um mapa de permissões (`auth-service/src/auth/permissoes.ts`), onde `admin` é superconjunto de `usuario` e qualquer permissão ausente nega (sempre *fail-closed*). O `GET /me` devolve as permissões resolvidas e o catálogo checa `permissoes.includes(...)` em vez de comparar `role === "admin"`. Ações exclusivas de admin (apagar comentário de terceiro, listar usuários, mudar papel) devolvem 403 para usuário comum. Também consertei um XSS guardado em comentários, trocando `innerHTML` por `textContent`.
 
   #evidencia([Atividade 4 — evidência: commit `d83b05d` (terminal, 06/10/2026 11:18)], arquivo: "prints/evidencia-atv4-terminal.png")
   #evidencia([Atividade 4 — evidência: página do commit no GitHub], arquivo: "prints/evidencia-atv4-commit.png")
   #evidencia([Atividade 4 — resultado: 403 para usuário comum], arquivo: "prints/resultado-atv4-rbac-403.png")
   #evidencia([Atividade 4 — resultado: a mesma ação autorizada para admin], arquivo: "prints/resultado-atv4-rbac-admin.png")
 
-  *Dificuldades e como foram resolvidas.* A entrega acumulou atraso por ter sido desenvolvida junto com a montagem das outras atividades. A principal dificuldade técnica foi provar a regra dos dois lados: a demonstração usa uma terceira conta como alvo, para que a exclusão pelo admin aconteça por *permissão* e não por *ownership*. O XSS armazenado foi descoberto durante a revisão do frontend e corrigido antes da entrega.
+  *Dificuldades e como foram resolvidas.* Essa atrasou porque fui desenvolvendo junto com as outras atividades. A parte mais chata foi provar a regra dos dois lados: a demonstração usa uma terceira conta como alvo, para a exclusão pelo admin acontecer por *permissão* e não por *ownership*. O XSS apareceu quando revisei o frontend e corrigi antes de entregar.
 ]
 
 #atividade(
@@ -230,13 +228,13 @@ A data e a hora de cada entrega foram extraídas do histórico de commits do rep
   evidencia: "GitHub — commit + print da consulta de logs pelo admin",
   url: "https://github.com/mateussantospereira/filmes-tom-hanks/commit/dca3a82",
 )[
-  *O que foi feito.* Foi criado um serviço dedicado de logs (`log-service`) que consome eventos de um Redis Streams e os disponibiliza para consulta: login bem-sucedido, ações sensíveis (como troca de papel) e tentativas negadas com 403. Um middleware global de auditoria captura qualquer `acao_negada` na borda do catálogo e a publica no stream; o admin consulta os eventos pela interface de auditoria do sistema. Nas atividades seguintes o mesmo mecanismo passou a registrar também `upload_foto` e `editar_perfil`.
+  *O que foi feito.* Criei um serviço de logs (`log-service`) que consome os eventos de um Redis Streams e deixa tudo pronto para consulta: login, ações sensíveis e tentativas negadas com 403. Um middleware global de auditoria pega qualquer `acao_negada` na borda do catálogo e publica no stream; o admin consulta os eventos pela tela de auditoria do sistema. Nas atividades seguintes o mesmo mecanismo passou a registrar também `upload_foto` e `editar_perfil`.
 
   #evidencia([Atividade 5 — evidência: commit `dca3a82` (terminal, 06/10/2026 18:30)], arquivo: "prints/evidencia-atv5-terminal.png")
   #evidencia([Atividade 5 — evidência: página do commit no GitHub], arquivo: "prints/evidencia-atv5-commit.png")
   #evidencia([Atividade 5 — resultado: consulta dos logs de auditoria pelo admin], arquivo: "prints/resultado-atv5-auditoria.png")
 
-  *Dificuldades e como foram resolvidas.* O Redis e o log-service não persistem volume, então o stream de auditoria zera a cada redeploy — comportamento esperado e documentado, mas que exigiu a demonstração ser rodada contra o ambiente com os serviços ativos. Também foi necessário versionar os estáticos (`?v=`) para o cache do CDN não servir script antigo.
+  *Dificuldades e como foram resolvidas.* O Redis e o log-service não persistem volume, então o stream de auditoria zera a cada redeploy — comportamento esperado e documentado, mas a demonstração precisa rodar com os serviços ativos. Também tive de versionar os arquivos estáticos (`?v=`) para o cache do CDN não servir script velho.
 ]
 
 #atividade(
@@ -248,24 +246,24 @@ A data e a hora de cada entrega foram extraídas do histórico de commits do rep
   evidencia: "GitHub — commit + print do perfil com foto",
   url: "https://github.com/mateussantospereira/filmes-tom-hanks/commit/01caeb5",
 )[
-  *O que foi feito.* A página de perfil do usuário ganhou bio e foto: o arquivo enviado vai para o bucket privado `perfis` do MinIO (com volume persistente no compose), a referência fica no MariaDB e a foto volta ao navegador por uma rota autenticada do catálogo (`GET /api/perfil/:id/foto`). O upload é validado no servidor (apenas imagem — 415; máximo 2 MB — 413). A identidade vem do token, nunca do ID no corpo/URL: editar ou fotografar o perfil de outra pessoa devolve 403 (`permissao_exigida: "editar:perfil-proprio"`), e esse evento entra na auditoria como `acao_negada`.
+  *O que foi feito.* A página de perfil ganhou bio e foto: o arquivo enviado vai para o bucket privado `perfis` do MinIO (com volume no compose), a referência fica no MariaDB e a foto volta ao navegador por uma rota autenticada do catálogo (`GET /api/perfil/:id/foto`). O upload é validado no servidor: só imagem (415) e no máximo 2 MB (413). A identidade vem do token, nunca do ID que a pessoa manda no corpo ou na URL — editar ou fotografar o perfil de outra pessoa devolve 403 (`permissao_exigida: "editar:perfil-proprio"`), e o evento entra na auditoria como `acao_negada`.
 
   #evidencia([Atividade 6 — evidência: commit `01caeb5` (terminal, 06/10/2026 19:50)], arquivo: "prints/evidencia-atv6-terminal.png")
   #evidencia([Atividade 6 — evidência: página do commit no GitHub], arquivo: "prints/evidencia-atv6-commit.png")
   #evidencia([Atividade 6 — resultado: perfil com foto de upload no MinIO], arquivo: "prints/resultado-atv6-perfil.png")
   #evidencia([Atividade 6 — resultado: recusa de editar perfil alheio (403)], arquivo: "prints/resultado-atv6-403.png")
 
-  *Dificuldades e como foram resolvidas.* No primeiro deploy a foto não aparecia: `background-image` no CSS não manda o header `Authorization`, então a rota autenticada devolvia 401. A solução foi carregar a foto com `fetch` enviando o token e montar uma blob URL (`URL.createObjectURL`) para o avatar. Em seguida, uma entrada de cache do CDN armazenada com o código antigo exigiu subir o cache-buster para `?v=5` — o que reforçou a regra de nunca pré-aquecer a URL nova antes do redeploy terminar.
+  *Dificuldades e como foram resolvidas.* No primeiro deploy a foto não aparecia: `background-image` no CSS não manda o header `Authorization`, então a rota autenticada devolvia 401. Resolvi carregando a foto com `fetch` mandando o token e montando uma blob URL (`URL.createObjectURL`) para o avatar. Depois, uma entrada velha do cache do CDN fez o `?v=4` não atualizar, e subi para `?v=5` — aprendi a nunca pré-aquecer a URL nova antes do redeploy terminar.
 ]
 
 // ============================================================
 = Considerações finais
 // ============================================================
-O bimestre mostrou, na prática, a distância entre "fazer funcionar na minha máquina" e "fazer funcionar em produção". A parte mais difícil foi operar o sistema em contêineres: rede interna entre serviços, variáveis de ambiente por ambiente, cache de CDN servindo versão velha e serviços sem persistência de volume zerando dados de auditoria. Cada um desses problemas virou uma lição documentada no README e, mais importante, um comportamento que hoje eu já antecipo antes de deplorar.
+Durante o bimestre eu percebi na prática a diferença entre "funcionar na minha máquina" e "funcionar em produção". A parte mais difícil foi operar o sistema em contêineres: rede interna entre serviços, variáveis de ambiente diferentes, cache de CDN servindo versão velha e serviço sem volume persistente zerando os logs. Cada problema virou uma lição que deixei anotada no README, e hoje eu já antecipo essas coisas antes de publicar.
 
-O ritmo de entrega não foi uniforme: o catálogo saiu antes do prazo, mas o desacoplamento do login e principalmente as atividades de RBAC e auditoria acumularam atraso e foram concluídas na reta final. Se pudesse fazer diferente, dividiria cada entrega em incrementos menores e faria o deploy de produção logo após cada atividade, em vez de concentrar o fechamento das demais no fim do período. Ainda assim, o projeto chegou completo: seis atividades entregues e comprovadas, com demonstrações automatizadas rodando contra o ambiente real.
+O ritmo não foi uniforme: o catálogo saiu até antes do prazo, mas desacoplar o login e principalmente RBAC e auditoria atrasaram e fecharam na reta final. Se eu fosse refazer, dividiria cada atividade em partes menores e faria o deploy logo depois de cada uma, em vez de concentrar o fechamento no fim do período. Mesmo assim, as seis atividades estão entregues e comprovadas, com scripts de demonstração rodando contra o ambiente real.
 
-Para o próximo bimestre, levo a rotina de validação automatizada (scripts de demonstração com saída verificável) e o hábito de registrar dificuldades e soluções à medida que acontecem — foi isso que permitiu que este relatório fosse escrito com datas e evidências reais, e não de memória.
+Para o próximo bimestre levo a rotina de validar com scripts automáticos (saída verificável) e o hábito de anotar as dificuldades na hora — foi isso que deixou este relatório com datas e evidências reais, sem depender da memória.
 
 // ============================================================
 = Declaração de autoria
