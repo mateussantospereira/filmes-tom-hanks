@@ -839,6 +839,14 @@ O print mostra:
 
 ---
 
+## P1 — Relatório bimestral de atividades (ISW055)
+
+Relatório individual da primeira avaliação bimestral, com o quadro de entregas planejadas × realizadas, uma ficha por atividade com evidências (commit + data/hora + print do resultado) e a declaração de autoria:
+
+- 📄 [P1_ISW055_Mateus_dos_Santos_Pereira.pdf](docs/P1_ISW055_Mateus_dos_Santos_Pereira.pdf)
+
+---
+
 ## Professor
 
 Disciplina ministrada por **@siriani** — <https://github.com/siriani>.
