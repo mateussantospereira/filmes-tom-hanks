@@ -122,7 +122,9 @@ Este relatório junta tudo isso num documento só: mostra o que era pra ser feit
 // ============================================================
 = Metodologia
 // ============================================================
-Todas as atividades foram feitas no mesmo repositório público do GitHub (`mateussantospereira/filmes-tom-hanks`), como continuação do mesmo projeto. Para programar usei Bun e o framework Hono nas APIs, o banco era MariaDB, os serviços rodavam em Docker Compose e o deploy era feito pelo Portainer. Os arquivos de upload foram para o MinIO e os logs de auditoria para o Redis, lidos por um serviço de logs separado. Cada atividade eu testava na minha máquina e, quando possível, publicava no ambiente de produção usado nas demonstrações (`https://mateus-pereira-isw055.lapps.studio`).
+Todas as atividades foram feitas no mesmo repositório público do GitHub (`mateussantospereira/filmes-tom-hanks`), como continuação do mesmo projeto. Para programar usei Bun e o framework Hono nas APIs, o banco era MariaDB, os serviços rodavam em Docker Compose e o deploy era feito pelo Portainer. Os arquivos de upload foram para o MinIO e os logs de auditoria para o Redis, lidos por um serviço de logs separado. Cada atividade eu testava na minha máquina e, quando possível, publicava no ambiente de produção usado nas demonstrações (`https://mateus-pereira-isw055.lapps.studio`). Todo o trabalho foi feito individualmente, do início ao fim.
+
+Durante o desenvolvimento também usei ferramentas de IA (assistentes de código e chat) como apoio: para escrever trechos de código, achar erros, entender conceitos e organizar este relatório. As decisões, a validação e o conteúdo final foram todos meus — a IA foi uma ferramenta de apoio, não a autora das entregas.
 
 As datas e horas de cada entrega foram tiradas do histórico de commits do repositório com o comando `git log` (no formato DD/MM/AAAA HH:MM) e conferidas na página de cada commit no GitHub. Para cada atividade o relatório traz duas provas: um print do terminal com o `git log` (mostrando o hash, a data/hora e o repositório) e o print da própria página do commit no GitHub — além do print do sistema funcionando. O README do repositório documenta cada atividade, mostra a arquitetura e menciona o professor (`github.com/siriani`).
 
@@ -268,7 +270,7 @@ Para o próximo bimestre levo a rotina de validar com scripts automáticos (saí
 // ============================================================
 = Declaração de autoria
 // ============================================================
-Declaro que este relatório foi elaborado por mim, individualmente, e que as evidências apresentadas correspondem a entregas de minha autoria, verificáveis nos links informados. Nas atividades realizadas em grupo, o conteúdo aqui descrito refere-se à minha participação.
+Declaro que este relatório foi elaborado por mim, individualmente, e que as evidências apresentadas correspondem a entregas de minha autoria, verificáveis nos links informados. Todas as atividades do bimestre foram realizadas individualmente, com apoio de ferramentas de IA (assistentes de código e chat), que usei para auxiliar no desenvolvimento das soluções e na organização deste relatório — todo o conteúdo final foi revisado e validado por mim.
 
 #v(1.5cm)
 #grid(
