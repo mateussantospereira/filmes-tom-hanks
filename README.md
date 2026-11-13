@@ -984,7 +984,7 @@ O script cria uma conta, prova que ela nasce `premium: false`, favorita 5 filmes
 2. Clique em **⭐ Assinar Premium — R$ 9,90/mês**. Você sai do catálogo e vai para a página do Stripe (modo de teste).
 3. Pague com `4242 4242 4242 4242`, validade futura, CVC qualquer.
 4. O Stripe redireciona de volta para `/catalog?checkout=sucesso`; a página consulta o status até o webhook chegar e mostra o selo **⭐ Premium**.
-5. Confira no banco: `SELECT id, nome, email, premium FROM usuarios WHERE email = '...';` → `premium = 1`, e em `assinaturas` o `cus_...`/`sub_...` com status `ativa`.
+5. Confira no banco: `SELECT id, nome, email, premium FROM usuarios WHERE email = '...';` → `premium = 1`, e em `assinaturas` o `cus_...`/`sub_...` com status `ativa`. Para o print sair alinhado:\n\n```bash\nbun --env-file=.env.portainer run scripts/mostrar-premium.ts voce@exemplo.com\n```
 
 Os três prints pedidos pelo enunciado:
 
