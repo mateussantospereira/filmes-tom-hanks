@@ -132,25 +132,62 @@ async function loadFavorites() {
   document.getElementById("loading").style.display = "block";
   document.getElementById("movies-grid").innerHTML = "";
 
-  const favs = await api("/api/favorites");
+  // Atividade 7: além dos favoritos, o status do plano (limite x premium).
+  const [favs, plano] = await Promise.all([
+    api("/api/favorites"),
+    api("/api/premium/status"),
+  ]);
   document.getElementById("loading").style.display = "none";
 
   if (!favs || favs.length === 0) {
     document.getElementById("movies-grid").innerHTML =
       '<p style="grid-column:1/-1;text-align:center;color:var(--muted)">Nenhum filme favoritado ainda.</p>';
-    return;
+  } else {
+    const favMovies = favs.map((f) => ({
+      id: f.tmdbMovieId,
+      title: f.titulo,
+      poster_path: f.posterPath,
+      overview: "",
+      release_date: "",
+      vote_average: null,
+    }));
+
+    renderMovies(favMovies);
   }
 
-  const favMovies = favs.map((f) => ({
-    id: f.tmdbMovieId,
-    title: f.titulo,
-    poster_path: f.posterPath,
-    overview: "",
-    release_date: "",
-    vote_average: null,
-  }));
+  mostrarStatusPlano(plano);
+}
 
-  renderMovies(favMovies);
+/**
+ * Atividade 7 — faixa de status do plano na aba de favoritos.
+ *
+ * É o benefício ficando VISÍVEL: comum vê "X de 5" com o botão de assinar;
+ * premium vê "ilimitados". A regra de verdade continua no servidor.
+ */
+function mostrarStatusPlano(plano) {
+  if (!plano) return;
+
+  const grid = document.getElementById("movies-grid");
+  const faixa = document.createElement("div");
+  faixa.className = "plano-faixa" + (plano.premium ? " premium" : "");
+
+  const texto = document.createElement("span");
+  if (plano.premium) {
+    texto.textContent = `⭐ Plano Premium ativo — ${plano.favoritos} favoritos, sem limite.`;
+  } else {
+    texto.textContent = `Plano gratuito: ${plano.favoritos} de ${plano.limiteFavoritos} favoritos usados.`;
+  }
+  faixa.appendChild(texto);
+
+  if (!plano.premium) {
+    const botao = document.createElement("button");
+    botao.className = "plano-btn";
+    botao.textContent = `⭐ Assinar Premium — ${plano.preco}`;
+    botao.onclick = assinarPremium;
+    faixa.appendChild(botao);
+  }
+
+  grid.appendChild(faixa);
 }
 
 function switchTab(tab, dadosPerfil) {
@@ -345,6 +382,15 @@ function renderPerfil(d, meuPerfil) {
   badge.textContent = d.role;
   linhaNome.appendChild(badge);
 
+  // Atividade 7 — o selo do plano aparece no perfil de qualquer pessoa
+  // (premium é um dado público, como o papel).
+  if (d.premium) {
+    const seloPremium = document.createElement("span");
+    seloPremium.className = "role-badge premium";
+    seloPremium.textContent = "⭐ Premium";
+    linhaNome.appendChild(seloPremium);
+  }
+
   info.appendChild(linhaNome);
 
   if (meuPerfil) {
@@ -380,6 +426,34 @@ function renderPerfil(d, meuPerfil) {
     rotulo.appendChild(texto);
     rotulo.appendChild(document.createTextNode(" (PNG/JPEG/GIF/WebP, máx 2 MB)"));
     info.appendChild(rotulo);
+
+    // Atividade 7 — status do plano e caminho para assinar.
+    const plano = document.createElement("div");
+    plano.className = "premium-card" + (d.premium ? " ativo" : "");
+
+    const tituloPlano = document.createElement("strong");
+    tituloPlano.textContent = d.premium ? "⭐ Plano Premium ativo" : "Plano gratuito";
+    plano.appendChild(tituloPlano);
+
+    const descricaoPlano = document.createElement("p");
+    if (d.premium) {
+      descricaoPlano.textContent =
+        "Favoritos ilimitados. A assinatura foi confirmada pelo Stripe e vale para esta conta.";
+    } else {
+      const limite = d.limiteFavoritos ?? 5;
+      descricaoPlano.textContent = `Até ${limite} favoritos. Assine para favoritos ilimitados. O pagamento é feito no Stripe (modo de teste) — nenhum dado de cartão passa por este site.`;
+    }
+    plano.appendChild(descricaoPlano);
+
+    if (!d.premium) {
+      const botaoPlano = document.createElement("button");
+      botaoPlano.className = "plano-btn";
+      botaoPlano.textContent = "⭐ Assinar Premium — R$ 9,90/mês";
+      botaoPlano.onclick = assinarPremium;
+      plano.appendChild(botaoPlano);
+    }
+
+    info.appendChild(plano);
   } else {
     const bioP = document.createElement("p");
     bioP.className = "perfil-bio-texto";
@@ -450,6 +524,64 @@ async function verPerfilDe(usuarioId) {
   const res = await api(`/api/perfil/${usuarioId}`);
   if (!res) return;
   switchTab("perfil", res);
+}
+
+/**
+ * Atividade 7 — abre o Checkout do Stripe.
+ *
+ * O backend cria a sessão e devolve uma URL. O navegador só redireciona: o
+ * cartão é digitado na página do Stripe, nunca aqui.
+ */
+async function assinarPremium() {
+  const res = await fetch(API + "/api/premium/checkout", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok || !data?.url) {
+    alert(data?.error || "Não foi possível abrir o checkout do Stripe.");
+    return;
+  }
+
+  window.location.href = data.url;
+}
+
+/**
+ * Atividade 7 — volta do Stripe (`?checkout=sucesso|cancelado`).
+ *
+ * O pagamento é confirmado por webhook, que pode chegar alguns segundos depois
+ * do redirecionamento. Por isso a página consulta o status algumas vezes em vez
+ * de assumir que o Premium já está ativo.
+ */
+async function tratarRetornoCheckout() {
+  const params = new URLSearchParams(window.location.search);
+  const estado = params.get("checkout");
+  if (!estado) return;
+
+  history.replaceState({}, "", "/catalog");
+
+  if (estado === "cancelado") {
+    alert("Checkout cancelado — nenhuma cobrança foi feita.");
+    return;
+  }
+
+  if (estado !== "sucesso") return;
+
+  switchTab("perfil");
+
+  for (let tentativa = 1; tentativa <= 10; tentativa++) {
+    const plano = await api("/api/premium/status");
+    if (plano?.premium) {
+      await carregarPerfil();
+      return;
+    }
+    await new Promise((resolver) => setTimeout(resolver, 1500));
+  }
+
+  alert(
+    "O Stripe confirmou o pagamento, mas o webhook ainda não chegou ao servidor. Recarregue a página em alguns segundos."
+  );
 }
 
 async function salvarBio() {
@@ -536,7 +668,7 @@ async function toggleFavorite() {
     await api(`/api/favorites/${currentMovie.id}`, { method: "DELETE" });
     favoriteIds.delete(currentMovie.id);
   } else {
-    await api("/api/favorites", {
+    const resposta = await api("/api/favorites", {
       method: "POST",
       body: JSON.stringify({
         tmdb_movie_id: currentMovie.id,
@@ -544,6 +676,15 @@ async function toggleFavorite() {
         poster_path: currentMovie.poster_path,
       }),
     });
+
+    // Atividade 7: o plano gratuito tem limite. A API responde 403 com
+    // `permissao_exigida: "favorito:ilimitado"`; avisamos e NAO marcamos como
+    // favorito (antes, o codigo marcava mesmo quando a API recusava).
+    if (resposta && resposta.error) {
+      alert(resposta.error);
+      return;
+    }
+
     favoriteIds.add(currentMovie.id);
   }
   updateFavButton();
@@ -659,3 +800,4 @@ document.getElementById("modal").addEventListener("click", (e) => {
 
 carregarSessao();
 loadMovies();
+tratarRetornoCheckout();

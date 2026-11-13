@@ -7,6 +7,7 @@ import commentsRoutes from "./routes/comments";
 import usuariosRoutes from "./routes/usuarios";
 import logsRoutes from "./routes/logs";
 import perfilRoutes from "./routes/perfil";
+import premiumRoutes from "./routes/premium";
 import { auditoria403Middleware } from "./middleware/auditoria";
 import { garantirBucket, MINIO_BUCKET } from "./services/minio";
 
@@ -33,6 +34,8 @@ app.route("/api/usuarios", usuariosRoutes);
 app.route("/api/logs", logsRoutes);
 // Atividade 6 — perfil do usuario (bio + foto no object storage).
 app.route("/api/perfil", perfilRoutes);
+// Atividade 7 — plano Premium: checkout no Stripe + webhook + status do plano.
+app.route("/api/premium", premiumRoutes);
 
 app.get("/api/*", (c) => c.json({ error: "Rota não encontrada" }, 404));
 

@@ -1,15 +1,15 @@
 /**
- * Aplicacao da migration da atividade 3.
+ * Aplicacao das migrations do auth-service (atividades 3 e 7).
  *
- * Por que isto existe: a migration precisa rodar no MariaDB da aplicacao (o
+ * Por que isto existe: as migrations precisam rodar no MariaDB da aplicacao (o
  * mesmo banco da atividade 2), e nao dentro do container — o container so
  * enxerga o banco pela rede. Este script roda DE DENTRO do container do
  * auth-service, usando o mesmo `mysql2` e as mesmas variaveis de ambiente, e
  * por isso roda em qualquer maquina que fala com o banco, inclusive via
  * `docker compose run` ou pelo console do Portainer.
  *
- * O que ele faz, em uma frase: acrescenta a coluna `role` em `usuarios` e cria
- * a tabela `reset_tokens`. Nao apaga nem altera dado nenhum.
+ * O que ele faz, em uma frase: acrescenta as colunas `role` e `premium` em
+ * `usuarios` e cria a tabela `reset_tokens`. Nao apaga nem altera dado nenhum.
  *
  * Como usar:
  *   docker compose run --rm auth-service bun run db:migrate
@@ -20,14 +20,16 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import mysql from "mysql2/promise";
 import { config } from "./config";
 import { pool } from "./db";
 import { schemaEstaCompleto, verificarSchema } from "./services/schema-check";
 
-/** O mesmo arquivo .sql versionado no repositorio — fonte unica da verdade. */
-const ARQUIVO_SQL = join(import.meta.dir, "..", "sql", "atividade-3.sql");
+/** Os mesmos arquivos .sql versionados no repositorio — fonte unica da verdade. */
+const ARQUIVOS_SQL = ["atividade-3.sql", "atividade-7.sql"].map((nome) =>
+  join(import.meta.dir, "..", "sql", nome)
+);
 
 /**
  * Erros que significam "isso aqui ja estava no banco". Tolerados para que uma
@@ -35,7 +37,7 @@ const ARQUIVO_SQL = join(import.meta.dir, "..", "sql", "atividade-3.sql");
  * o script de novo.
  */
 const JA_EXISTIA = new Set([
-  "ER_DUP_FIELDNAME", // 1060 — a coluna `role` ja existe
+  "ER_DUP_FIELDNAME", // 1060 — a coluna `role`/`premium` ja existe
   "ER_TABLE_EXISTS_ERROR", // 1050 — a tabela `reset_tokens` ja existe
   "ER_DUP_KEYNAME", // 1061 — o indice ja existe
 ]);
@@ -89,7 +91,7 @@ async function main(): Promise<number> {
   const antes = await verificarSchema();
   if (schemaEstaCompleto(antes)) {
     console.log(
-      "[migrate] schema ja atualizado: coluna `role` e tabela `reset_tokens` ja existem."
+      "[migrate] schema ja atualizado: colunas `role` e `premium` e tabela `reset_tokens` ja existem."
     );
     console.log("[migrate] nada a fazer.");
     return 0;
@@ -104,21 +106,25 @@ async function main(): Promise<number> {
   });
 
   try {
-    const comandos = separaComandos(await readFile(ARQUIVO_SQL, "utf8"));
-    console.log(`[migrate] ${comandos.length} comando(s) em sql/atividade-3.sql\n`);
+    for (const arquivo of ARQUIVOS_SQL) {
+      const comandos = separaComandos(await readFile(arquivo, "utf8"));
+      console.log(
+        `[migrate] ${comandos.length} comando(s) em ${basename(arquivo)}\n`
+      );
 
-    for (const comando of comandos) {
-      try {
-        await conexao.query(comando);
-        console.log(`  [aplicado]  ${resumo(comando)}`);
-      } catch (erro) {
-        const codigo = codigoReal(erro);
-        if (JA_EXISTIA.has(codigo)) {
-          console.log(`  [ja existia] ${resumo(comando)}`);
-          continue;
+      for (const comando of comandos) {
+        try {
+          await conexao.query(comando);
+          console.log(`  [aplicado]  ${resumo(comando)}`);
+        } catch (erro) {
+          const codigo = codigoReal(erro);
+          if (JA_EXISTIA.has(codigo)) {
+            console.log(`  [ja existia] ${resumo(comando)}`);
+            continue;
+          }
+          console.error(`\n  [FALHOU]     ${resumo(comando)}`);
+          throw erro;
         }
-        console.error(`\n  [FALHOU]     ${resumo(comando)}`);
-        throw erro;
       }
     }
   } finally {
@@ -128,13 +134,16 @@ async function main(): Promise<number> {
   const depois = await verificarSchema();
   if (!schemaEstaCompleto(depois)) {
     console.error("\n[migrate] a migration rodou, mas o schema ainda esta incompleto:");
-    console.error(`[migrate]   temColunaRole=${depois.temColunaRole} temTabelaResetTokens=${depois.temTabelaResetTokens}`);
+    console.error(
+      `[migrate]   role=${depois.temColunaRole} reset_tokens=${depois.temTabelaResetTokens} premium=${depois.temColunaPremium}`
+    );
     return 1;
   }
 
-  console.log("\n[migrate] pronto — coluna `role` em `usuarios` e tabela `reset_tokens` criadas.");
-  console.log("[migrate] seus usuarios existentes continuam intactos (todos com role = 'usuario').");
+  console.log("\n[migrate] pronto — `role` e `premium` em `usuarios`, tabela `reset_tokens` criada.");
+  console.log("[migrate] seus usuarios existentes continuam intactos (premium = false).");
   console.log("[migrate] para virar admin:  UPDATE `usuarios` SET `role`='admin' WHERE `email`='voce@exemplo.com';");
+  console.log("[migrate] premium de verdade vem do Stripe; o UPDATE manual e so para testar.");
   return 0;
 }
 

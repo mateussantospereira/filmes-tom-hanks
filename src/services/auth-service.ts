@@ -40,6 +40,8 @@ export type Sessao = {
   nome: string;
   email: string;
   role: Papel;
+  /** Atividade 7: assinatura Premium ativa (o direito mora no auth-service). */
+  premium: boolean;
   /**
    * O que este usuario pode fazer, resolvido pelo auth-service.
    *
@@ -175,9 +177,45 @@ export const alterarPapel = (token: string, usuarioId: number, role: Papel) =>
  * logado; so identidade, nunca e-mail.
  */
 export const perfilPublico = (token: string, usuarioId: number) =>
-  chamar<{ id: number; nome: string; role: Papel }>(`/usuarios/${usuarioId}/perfil-publico`, {
-    headers: { Authorization: `Bearer ${token}` },
+  chamar<{ id: number; nome: string; role: Papel; premium: boolean }>(
+    `/usuarios/${usuarioId}/perfil-publico`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+
+/**
+ * POST /interno/usuarios/:id/premium — Atividade 7.
+ *
+ * Chamado pelo CATALOGO depois que o webhook do Stripe confirma o pagamento.
+ * Nao e rota de usuario: quem chama e outro servico, e a prova e o segredo
+ * compartilhado `INTERNAL_SYNC_TOKEN` (o auth-service nao publica porta, mas
+ * defesa em profundidade: mesmo de dentro da rede `interna`, sem o token a
+ * rota recusa).
+ *
+ * O direito (`premium`) mora no auth-service porque ele e o dono de
+ * `usuarios`; o catalogo apenas avisa "o Stripe confirmou o pagamento".
+ */
+export const definirPremium = (
+  usuarioId: number,
+  premium: boolean
+): Promise<Resultado<{ message: string; usuario: { id: number; premium: boolean } }>> => {
+  const tokenInterno = process.env.INTERNAL_SYNC_TOKEN?.trim() ?? "";
+
+  if (!tokenInterno) {
+    return Promise.resolve({
+      ok: false,
+      status: 503,
+      erro: "Sincronização interna não configurada (INTERNAL_SYNC_TOKEN ausente).",
+    });
+  }
+
+  return chamar(`/interno/usuarios/${usuarioId}/premium`, {
+    method: "POST",
+    body: JSON.stringify({ premium }),
+    headers: { "x-internal-token": tokenInterno },
   });
+};
 
 /** Linha devolvida por GET /usuarios. NUNCA ha `senha_hash` nesta lista. */
 export type UsuarioLista = {

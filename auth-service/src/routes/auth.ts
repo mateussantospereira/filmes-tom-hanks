@@ -179,6 +179,7 @@ auth.get("/me", async (c) => {
       nome: usuarios.nome,
       email: usuarios.email,
       role: usuarios.role,
+      premium: usuarios.premium,
     })
     .from(usuarios)
     .where(eq(usuarios.id, usuarioId))
@@ -188,7 +189,7 @@ auth.get("/me", async (c) => {
     return c.json({ error: "Token inválido" }, 401);
   }
 
-  const { id, nome, email, role } = rows[0];
+  const { id, nome, email, role, premium } = rows[0];
 
   /**
    * Atividade 4: o `/me` deixou de responder so "quem e voce" e passa a
@@ -201,7 +202,7 @@ auth.get("/me", async (c) => {
    * E a diferenca entre entregar o PAPEL (que obriga cada servico a saber o que
    * cada papel significa) e entregar as PERMISSOES (que so informam o resultado).
    */
-  return c.json({ usuarioId: id, nome, email, role, permissoes: permissoesDe(role) });
+  return c.json({ usuarioId: id, nome, email, role, premium, permissoes: permissoesDe(role) });
 });
 
 export default auth;

@@ -1,5 +1,5 @@
 /**
- * Aplicacao da migration da atividade 6 (tabela `perfis`).
+ * Aplicacao das migrations do CATALOGO (atividades 6 e 7).
  *
  * Mesmo padrao do auth-service/src/migrate.ts: um script que roda FORA do
  * container — basta uma maquina que fale com o MariaDB e tenha as variaveis
@@ -8,16 +8,21 @@
  *   bun run db:migrate                       # ambiente local
  *   bun --env-file=.env.portainer run db:migrate   # contra o banco de producao
  *
- * Idempotente: o .sql e `CREATE TABLE IF NOT EXISTS`, e o script confere o
- * schema antes e depois. NAO e um `db:push`: so cria esta tabela nova, nao
+ * Idempotente: os .sql sao `CREATE TABLE IF NOT EXISTS`, e o script confere o
+ * schema antes e depois. NAO e um `db:push`: so cria estas tabelas novas, nao
  * altera nada que ja existe.
  */
 
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import mysql from "mysql2/promise";
 
-const ARQUIVO_SQL = join(import.meta.dir, "..", "..", "sql", "atividade-6.sql");
+const ARQUIVOS_SQL = ["atividade-6.sql", "atividade-7.sql"].map((nome) =>
+  join(import.meta.dir, "..", "..", "sql", nome)
+);
+
+/** Tabelas que estas migrations criam (o script confere todas antes de rodar). */
+const TABELAS = ["perfis", "assinaturas"];
 
 function resumo(comando: string): string {
   const linha = comando.split("\n")[0].replace(/\s+/g, " ").trim();
@@ -45,40 +50,51 @@ async function main(): Promise<number> {
   });
 
   console.log(
-    `[migrate-perfis] alvo: ${process.env.DB_USER}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`
+    `[migrate-catalogo] alvo: ${process.env.DB_USER}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`
   );
 
-  const [tabelas] = await conexao.query<mysql.RowDataPacket[]>(
-    "SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'perfis'"
+  const marcadores = TABELAS.map(() => "?").join(", ");
+  const [linhas] = await conexao.query<mysql.RowDataPacket[]>(
+    `SELECT table_name AS nome FROM information_schema.tables
+      WHERE table_schema = DATABASE() AND table_name IN (${marcadores})`,
+    TABELAS
   );
 
-  if (Number(tabelas[0]?.n ?? 0) > 0) {
-    console.log("[migrate-perfis] tabela `perfis` ja existe — nada a fazer.");
+  const existentes = new Set(linhas.map((l) => String(l.nome)));
+  const faltando = TABELAS.filter((t) => !existentes.has(t));
+
+  if (faltando.length === 0) {
+    console.log(`[migrate-catalogo] tabelas ${TABELAS.join(", ")} ja existem — nada a fazer.`);
     await conexao.end();
     return 0;
   }
 
-  try {
-    const texto = await readFile(ARQUIVO_SQL, "utf8");
-    const comandos = texto
-      .split("\n")
-      .filter((linha) => !linha.trim().startsWith("--"))
-      .join("\n")
-      .split(";")
-      .map((c) => c.trim())
-      .filter(Boolean);
+  console.log(`[migrate-catalogo] faltando: ${faltando.join(", ")}\n`);
 
-    console.log(`[migrate-perfis] ${comandos.length} comando(s) em sql/atividade-6.sql\n`);
-    for (const comando of comandos) {
-      await conexao.query(comando);
-      console.log(`  [aplicado]  ${resumo(comando)}`);
+  try {
+    for (const arquivo of ARQUIVOS_SQL) {
+      const texto = await readFile(arquivo, "utf8");
+      const comandos = texto
+        .split("\n")
+        .filter((linha) => !linha.trim().startsWith("--"))
+        .join("\n")
+        .split(";")
+        .map((c) => c.trim())
+        .filter(Boolean);
+
+      console.log(`[migrate-catalogo] ${comandos.length} comando(s) em ${basename(arquivo)}\n`);
+      for (const comando of comandos) {
+        await conexao.query(comando);
+        console.log(`  [aplicado]  ${resumo(comando)}`);
+      }
     }
   } finally {
     await conexao.end();
   }
 
-  console.log("\n[migrate-perfis] pronto — tabela `perfis` criada (bio + foto_chave).");
-  console.log("[migrate-perfis] a foto em si vai para o MinIO; aqui fica so a chave.");
+  console.log("\n[migrate-catalogo] pronto — tabelas `perfis` e `assinaturas` criadas.");
+  console.log("[migrate-catalogo] a foto vai para o MinIO e os IDs do Stripe ficam em `assinaturas`;");
+  console.log("[migrate-catalogo] o direito `usuarios.premium` e do auth-service (rode o migrate dele).");
   return 0;
 }
 
@@ -86,7 +102,7 @@ let codigoSaida = 1;
 try {
   codigoSaida = await main();
 } catch (erro) {
-  console.error(`\n[migrate-perfis] ERRO: ${mensagemReal(erro)}`);
-  console.error("[migrate-perfis] Nada foi alterado no banco.");
+  console.error(`\n[migrate-catalogo] ERRO: ${mensagemReal(erro)}`);
+  console.error("[migrate-catalogo] Nada foi alterado no banco.");
 }
 process.exit(codigoSaida);

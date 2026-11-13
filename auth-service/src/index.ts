@@ -97,7 +97,7 @@ try {
   pendencia = await verificarSchema();
 } catch (erro) {
   console.error("[auth-service] nao consegui falar com o banco no boot:", erro);
-  console.error(avisoSchemaPendente({ temColunaRole: false, temTabelaResetTokens: false }));
+  console.error(avisoSchemaPendente({ temColunaRole: false, temTabelaResetTokens: false, temColunaPremium: false }));
 }
 
 if (pendencia && !schemaEstaCompleto(pendencia)) {

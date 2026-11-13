@@ -69,6 +69,18 @@ export const config = {
     path: opcional("RESET_PASSWORD_PATH", "/reset-password"),
   },
 
+  /**
+   * Atividade 7 — sincronizacao interna do Premium.
+   *
+   * O webhook do Stripe chega no CATALOGO (unico servico publico). Quem guarda
+   * `usuarios.premium` e o auth-service, entao o catalogo chama a rota interna
+   * `/interno/usuarios/:id/premium` com este segredo no header
+   * `x-internal-token`. Sem ele, a rota responde 503 (nao ha como autenticar).
+   */
+  interno: {
+    syncToken: opcional("INTERNAL_SYNC_TOKEN", ""),
+  },
+
   mail: {
     /**
      * Dev:  Mailtrap  -> smtp.mailtrap.io:2525 (sandbox, o e-mail nao sai de fato)

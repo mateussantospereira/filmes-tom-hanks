@@ -6,6 +6,7 @@ import { perfis, favoritos } from "../db/schema";
 import { authMiddleware } from "../middleware/auth";
 import { registrar, ipDe } from "../services/log-service";
 import { perfilPublico } from "../services/auth-service";
+import { LIMITE_FAVORITOS_GRATIS } from "../services/plano";
 import {
   enviarFoto,
   obterFoto,
@@ -66,13 +67,16 @@ function montarPerfil(
   role: string,
   linha: LinhaPerfil | null,
   favoritosDoUsuario: typeof favoritos.$inferSelect[],
-  meuPerfil: boolean
+  meuPerfil: boolean,
+  premium: boolean
 ) {
   const fotoChave = linha?.fotoChave ?? null;
   return {
     id,
     nome,
     role,
+    premium,
+    limiteFavoritos: premium ? null : LIMITE_FAVORITOS_GRATIS,
     bio: linha?.bio ?? null,
     fotoChave,
     // A URL NAO expoe a chave interna: quem serve o binario e o catalogo.
@@ -94,7 +98,15 @@ perfil.get("/", async (c) => {
     db.select().from(favoritos).where(eq(favoritos.usuarioId, usuarioId)),
   ]);
   return c.json(
-    montarPerfil(usuarioId, c.get("nome"), c.get("role"), linha, favoritosDoUsuario, true)
+    montarPerfil(
+      usuarioId,
+      c.get("nome"),
+      c.get("role"),
+      linha,
+      favoritosDoUsuario,
+      true,
+      c.get("premium")
+    )
   );
 });
 
@@ -165,7 +177,8 @@ perfil.get("/:id", async (c) => {
       resultado.dados.role,
       linha,
       favoritosDoUsuario,
-      meuPerfil
+      meuPerfil,
+      Boolean(resultado.dados.premium)
     )
   );
 });

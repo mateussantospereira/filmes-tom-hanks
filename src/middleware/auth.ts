@@ -26,6 +26,10 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   c.set("usuarioId", resultado.dados.usuarioId);
   c.set("role", resultado.dados.role);
   c.set("nome", resultado.dados.nome);
+  c.set("email", resultado.dados.email);
+  // Atividade 7: o "premium" e lido do banco pelo auth-service a cada /me —
+  // igual ao papel. Assinou agora? Vale na proxima requisicao, sem relogar.
+  c.set("premium", Boolean(resultado.dados.premium));
   // As permissoes chegam prontas do auth-service: o catalogo nao tem mapa
   // nenhum de papel -> permissao proprio. E o que faz dele um enforcement
   // delegado, e nao uma regra de autorizacao reimplementada.

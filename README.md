@@ -25,6 +25,8 @@ O que **não** mudou: a URL de acesso, o banco de dados, o nome do stack no Port
 
 Na **atividade 4** o que mudou foi de dentro do código: `admin` deixou de ser um rótulo que só a interface olhava e virou **permissão verificada no servidor**, tanto que uma chamada feita direto por `curl` — sem interface nenhuma — leva **403**. Ver [Papéis e permissões](#papéis-e-permissões) e [Autorização (RBAC)](#autorização-rbac).
 
+Na **atividade 7** o catálogo ganhou um **modelo de negócio**: um plano Premium pago de verdade (em modo de teste) pelo **Stripe**, com o cartão digitado na página do provedor e a confirmação chegando por **webhook**. Ver [Atividade 7 — Serviço baseado em pagamento](#atividade-7--serviço-baseado-em-pagamento-stripe).
+
 ```
                       internet
                          │
@@ -836,6 +838,161 @@ O print mostra:
 * **Bio salva** e aviso de que o binário não mora no banco
 * **Favoritos da atividade 2** na mesma página — o perfil é a soma do dado novo (foto/bio) com o dado que já existia
 * A tentativa de editar o perfil alheio foi demonstrada no script acima com `403` (`permissao_exigida: "editar:perfil-proprio"`), que também aparece no log de auditoria como `acao_negada`
+
+---
+
+## Atividade 7 — Serviço baseado em pagamento (Stripe)
+
+Até aqui todo serviço resolvia um problema técnico. Este resolve um problema de negócio: **como o sistema gera receita**. O catálogo ganha um **Plano Premium — R$ 9,90/mês**, cobrado de verdade pelo **Stripe em modo de teste**.
+
+A decisão central é **não guardar dado de cartão**. Número, CVV e validade são digitados na página **hospedada pelo Stripe** (Checkout); o nosso backend nunca vê esses dados e, portanto, nunca precisa carregar a responsabilidade de PCI-DSS. O que o Stripe nos manda é só a confirmação de que o pagamento aconteceu — por **webhook**, uma chamada HTTP separada da requisição que abriu o checkout.
+
+```
+ navegador                    catálogo                          Stripe
+ ┌──────────┐   POST /api/premium/checkout   ┌──────────────┐
+ │  usuário │ ─────────────────────────────► │ cria Session │ ──► checkout.stripe.com
+ │  logado  │ ◄───────────────────────────── │ devolve URL  │      (página hospedada:
+ └────┬─────┘        { url }                 └──────────────┘       cartão fica AQUI)
+      │  redireciona para a URL do Stripe
+      │  paga com 4242 4242 4242 4242 (teste)
+      │                                                    ┌──────────────┐
+      │                                                    │   Stripe     │
+      │        POST /api/premium/webhook (assinado) ◄──────│  confirma    │
+      ▼                                                    └──────────────┘
+ ┌─────────────────────────────────────────────┐
+ │ 1. valida a assinatura HMAC do webhook      │
+ │ 2. grava cus_.../sub_... em `assinaturas`    │
+ │ 3. avisa o auth-service: usuarios.premium=true│
+ └─────────────────────────────────────────────┘
+```
+
+### Modo de teste — sempre
+
+Toda a atividade roda em **test mode**. Nenhuma cobrança real existe. Cartões de teste do Stripe:
+
+| Cartão | Resultado |
+|---|---|
+| `4242 4242 4242 4242` | pagamento aprovado |
+| `4000 0000 0000 0002` | recusado |
+| `4000 0025 0000 3155` | exige autenticação 3D Secure |
+
+Validade: qualquer data futura. CVC: qualquer 3 dígitos.
+
+### O que é de quem (a mesma divisão das atividades anteriores)
+
+| Dado | Onde fica | Por quê |
+|---|---|---|
+| `usuarios.premium` | **auth-service** | é o direito da conta, e o auth-service é o dono de `usuarios` |
+| `cus_...` / `sub_...` / status | **catálogo**, tabela `assinaturas` | é o catálogo que conversa com o Stripe |
+| número do cartão, CVV, validade | **só no Stripe** | nunca chegam ao nosso backend (requisito 5) |
+| segredo do webhook | variável de ambiente | valida que a chamada veio mesmo do Stripe |
+
+O webhook chega no catálogo (único serviço público). Para marcar o direito no auth-service, o catálogo chama uma **rota interna** `POST /interno/usuarios/:id/premium` com o segredo `INTERNAL_SYNC_TOKEN` no header `x-internal-token`. O auth-service não escreve na tabela do catálogo e o catálogo não escreve na tabela do auth-service: cada um pede ao dono. A comparação do segredo é **timing-safe**.
+
+### Migration (duas, uma por dono)
+
+```bash
+# 1) auth-service: coluna `premium` em `usuarios`
+cd auth-service && bun --env-file=../.env.portainer run db:migrate
+
+# 2) catálogo: tabela `assinaturas`
+bun --env-file=.env.portainer run db:migrate
+```
+
+```sql
+-- auth-service/sql/atividade-7.sql
+ALTER TABLE usuarios ADD COLUMN premium BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- sql/atividade-7.sql (catálogo)
+CREATE TABLE IF NOT EXISTS assinaturas (
+  usuario_id            INT NOT NULL,
+  stripe_customer_id    VARCHAR(64) NULL,   -- cus_...
+  stripe_subscription_id VARCHAR(64) NULL,  -- sub_...
+  status                VARCHAR(20) NOT NULL DEFAULT 'pendente',
+  plano                 VARCHAR(40) NOT NULL DEFAULT 'premium',
+  atualizado_em         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (usuario_id),
+  UNIQUE KEY assinaturas_stripe_subscription_id_unique (stripe_subscription_id),
+  CONSTRAINT fk_assinaturas_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### Configuração do Stripe (uma vez)
+
+1. Crie uma conta gratuita em <https://dashboard.stripe.com> e ative o **Test mode**.
+2. **Products** → crie `Plano Premium — R$ 9,90/mês`, preço **recorrente mensal** em BRL. Copie o `price_...`.
+3. **Developers → API keys** → copie a **Secret key de teste** (`sk_test_...`).
+4. Faça o deploy com `STRIPE_SECRET_KEY` e `STRIPE_PRICE_ID` configurados.
+5. **Developers → Webhooks → Add endpoint**:
+   - URL: `https://SEU-DOMINIO/api/premium/webhook`
+   - Eventos: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
+   - Copie o **Signing secret** (`whsec_...`) para `STRIPE_WEBHOOK_SECRET` e faça o redeploy.
+
+Variáveis novas (as mesmas nos dois serviços, quando indicado):
+
+```yaml
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PRICE_ID=price_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_LABEL=R$ 9,90/mes
+LIMITE_FAVORITOS_GRATIS=5
+APP_PUBLIC_URL=https://mateus-pereira-isw055.lapps.studio
+INTERNAL_SYNC_TOKEN=<segredo compartilhado catalogo <-> auth-service>
+```
+
+Sem as chaves, o catálogo **sobe normalmente** e só o checkout responde `503` com mensagem clara — o mesmo princípio do MinIO: serviço de apoio fora do ar não derruba o catálogo.
+
+### As rotas
+
+| Rota | Autenticação | O que faz |
+|---|---|---|
+| `POST /api/premium/checkout` | JWT do usuário | cria a Checkout Session e devolve `{ url }`; `409` se já é premium |
+| `POST /api/premium/webhook` | **assinatura do Stripe** | valida o HMAC, grava a assinatura e ativa/desativa o Premium |
+| `GET /api/premium/status` | JWT do usuário | plano, limite, quantos favoritos e preço |
+| `POST /interno/usuarios/:id/premium` | `x-internal-token` | rota interna do auth-service: vira `premium` no banco |
+
+Detalhes que importam:
+
+* O webhook lê o corpo **cru** (`c.req.text()`) — a assinatura do Stripe é calculada sobre os bytes exatos. Um `JSON.parse` antes quebraria a validação.
+* Sem `stripe-signature` ou com assinatura inválida: **400**. Qualquer pessoa pode chamar essa URL; só o Stripe consegue assinar.
+* `checkout.session.completed` carrega o `client_reference_id` com o id do usuário — é assim que sabemos quem pagou, sem confiar em nada que venha do navegador.
+* `customer.subscription.updated/deleted` trata cancelamento e pagamento recusado: o status da assinatura (`active`, `past_due`, `canceled`...) decide se o Premium continua valendo.
+* Se o banco falhar depois de um pagamento confirmado, o webhook responde **500** de propósito: o Stripe reenvia o evento, e o processamento é **idempotente** (upsert por `usuario_id`).
+
+### O benefício: favoritos ilimitados + selo no perfil
+
+O plano gratuito aceita **5 favoritos** (`LIMITE_FAVORITOS_GRATIS`). O Premium não tem limite. A diferença é verificável de duas formas:
+
+1. **Comportamento**: o 6º favorito de um usuário comum recebe `403` com `permissao_exigida: "favorito:ilimitado"`. O premium continua favoritando.
+2. **Visual**: o perfil de quem é premium mostra o selo **⭐ Premium** (para qualquer pessoa que abrir o perfil) e a aba de favoritos mostra "sem limite" em vez de "X de 5".
+
+A checagem é sempre no **servidor** — esconder o botão na tela não é segurança, e chamar a API direto também recebe `403`. O evento entra na auditoria da atividade 5 como `acao_negada`, e as ações `checkout_iniciado`, `assinatura_ativada` e `assinatura_cancelada` também são registradas.
+
+### Demonstração automatizada (o que dá para provar sem cartão)
+
+```bash
+./scripts/demonstrar-pagamento.sh                  # local
+CATALOGO_URL=https://mateus-pereira-isw055.lapps.studio ./scripts/demonstrar-pagamento.sh
+```
+
+O script cria uma conta, prova que ela nasce `premium: false`, favorita 5 filmes, mostra o **6º sendo recusado com 403**, confere o status do plano e envia dois webhooks falsos (sem assinatura e com assinatura inventada) para mostrar que os dois são recusados. Se as chaves estiverem configuradas, ele também imprime a URL do Checkout criada no Stripe.
+
+### Como testar o pagamento (e os prints da entrega)
+
+1. Faça login no catálogo com uma conta comum e abra **👤 Perfil**.
+2. Clique em **⭐ Assinar Premium — R$ 9,90/mês**. Você sai do catálogo e vai para a página do Stripe (modo de teste).
+3. Pague com `4242 4242 4242 4242`, validade futura, CVC qualquer.
+4. O Stripe redireciona de volta para `/catalog?checkout=sucesso`; a página consulta o status até o webhook chegar e mostra o selo **⭐ Premium**.
+5. Confira no banco: `SELECT id, nome, email, premium FROM usuarios WHERE email = '...';` → `premium = 1`, e em `assinaturas` o `cus_...`/`sub_...` com status `ativa`.
+
+Os três prints pedidos pelo enunciado:
+
+| Print | O que mostrar |
+|---|---|
+| **Checkout concluído** | a página de sucesso do Stripe (ou a tela de checkout preenchida com o cartão de teste) deixando claro que é **modo de teste** |
+| **Usuário virou premium no banco** | `SELECT id, nome, email, premium FROM usuarios WHERE ...` mostrando `premium = 1`, e de preferência `SELECT * FROM assinaturas ...` com `status = 'ativa'` e os IDs do Stripe |
+| **Benefício funcionando** | o perfil com o selo **⭐ Premium** e/ou a diferença 5 favoritos × ilimitado (o 6º favorito do comum recebendo 403) |
 
 ---
 

@@ -39,6 +39,10 @@ export type Env = {
     usuarioId: number;
     role: Papel;
     nome: string;
+    /** E-mail da conta — usado para criar o cliente no Stripe (atividade 7). */
+    email: string;
+    /** Assinatura Premium ativa? Lido do banco pelo auth-service em todo `GET /me`. */
+    premium: boolean;
     /** Lista pronta de permissoes, entregue pelo auth-service no `GET /me`. */
     permissoes: Permissao[];
   };

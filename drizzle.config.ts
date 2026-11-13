@@ -10,7 +10,7 @@ export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./drizzle",
   dialect: "mysql",
-  tablesFilter: ["favoritos", "comentarios", "perfis"],
+  tablesFilter: ["favoritos", "comentarios", "perfis", "assinaturas"],
   dbCredentials: {
     host: process.env.DB_HOST!,
     port: Number(process.env.DB_PORT),

@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { eq, desc } from "drizzle-orm";
+import { timingSafeEqual } from "node:crypto";
 import { db } from "../db";
 import { usuarios } from "../db/schema";
+import { config } from "../config";
 import { exigePermissao, autenticado } from "../middleware/autorizar";
 import { registrar, ipDe } from "../services/log-service";
 import type { Papel } from "../auth/permissoes";
@@ -41,6 +43,7 @@ usuariosRota.get("/usuarios", exigePermissao("listar:usuarios"), async (c) => {
       nome: usuarios.nome,
       email: usuarios.email,
       role: usuarios.role,
+      premium: usuarios.premium,
       criadoEm: usuarios.criadoEm,
     })
     .from(usuarios)
@@ -133,7 +136,7 @@ usuariosRota.get("/usuarios/:id/perfil-publico", autenticado, async (c) => {
   }
 
   const [alvo] = await db
-    .select({ id: usuarios.id, nome: usuarios.nome, role: usuarios.role })
+    .select({ id: usuarios.id, nome: usuarios.nome, role: usuarios.role, premium: usuarios.premium })
     .from(usuarios)
     .where(eq(usuarios.id, id))
     .limit(1);
@@ -143,6 +146,93 @@ usuariosRota.get("/usuarios/:id/perfil-publico", autenticado, async (c) => {
   }
 
   return c.json(alvo);
+});
+
+/**
+ * ATIVIDADE 7 — rota INTERNA de sincronizacao do Premium.
+ *
+ * Quem chama: o CATALOGO, depois de validar a assinatura do webhook do Stripe.
+ * Quem autentica a chamada NAO e um usuario (nao ha JWT aqui): e o segredo
+ * compartilhado `INTERNAL_SYNC_TOKEN`, enviado no header `x-internal-token`.
+ *
+ * Por que esta rota existe: o auth-service e o dono de `usuarios`, e o
+ * catalogo e o dono da conversa com o Stripe. Em vez de o catalogo escrever
+ * direto na tabela do outro servico (quebraria o "um banco, dois donos"), o
+ * dono da identidade recebe um pedido para mudar o direito: `premium: true`.
+ *
+ * A comparacao do segredo e timing-safe: comparar strings com `===` vaza, pelo
+ * tempo de resposta, quantos caracteres iniciais estavam certos.
+ */
+function segredoInternoConfere(recebido: string | undefined): boolean {
+  const esperado = config.interno.syncToken;
+  if (!esperado || !recebido) return false;
+
+  const a = Buffer.from(recebido);
+  const b = Buffer.from(esperado);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+usuariosRota.post("/interno/usuarios/:id/premium", async (c) => {
+  if (!config.interno.syncToken) {
+    return c.json(
+      { error: "Sincronização interna não configurada (INTERNAL_SYNC_TOKEN ausente)." },
+      503
+    );
+  }
+
+  if (!segredoInternoConfere(c.req.header("x-internal-token"))) {
+    return c.json({ error: "Token interno inválido." }, 401);
+  }
+
+  const alvoId = Number(c.req.param("id"));
+  if (!Number.isInteger(alvoId)) {
+    return c.json({ error: "Usuário inválido" }, 400);
+  }
+
+  const { premium } = (await c.req.json().catch(() => ({}))) as { premium?: unknown };
+
+  if (typeof premium !== "boolean") {
+    return c.json({ error: 'Campo "premium" (boolean) é obrigatório' }, 400);
+  }
+
+  const [alvo] = await db
+    .select({
+      id: usuarios.id,
+      nome: usuarios.nome,
+      role: usuarios.role,
+      premium: usuarios.premium,
+    })
+    .from(usuarios)
+    .where(eq(usuarios.id, alvoId))
+    .limit(1);
+
+  if (!alvo) {
+    return c.json({ error: "Usuário não encontrado" }, 404);
+  }
+
+  if (alvo.premium === premium) {
+    return c.json({
+      message: `Usuário já estava com premium=${premium}.`,
+      usuario: { id: alvo.id, premium },
+    });
+  }
+
+  await db.update(usuarios).set({ premium }).where(eq(usuarios.id, alvoId));
+
+  await registrar({
+    acao: premium ? "assinatura_ativada" : "assinatura_cancelada",
+    usuario_id: alvo.id,
+    usuario: alvo.nome,
+    papel: alvo.role,
+    recurso: "plano:premium",
+    detalhe: `webhook Stripe · premium=${premium}`,
+    ip: ipDe(c),
+  });
+
+  return c.json({
+    message: `Premium de ${alvo.nome} ${premium ? "ativado" : "desativado"}.`,
+    usuario: { id: alvo.id, premium },
+  });
 });
 
 export default usuariosRota;

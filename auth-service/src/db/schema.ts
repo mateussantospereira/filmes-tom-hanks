@@ -27,6 +27,16 @@ export const usuarios = mysqlTable("usuarios", {
   senhaHash: varchar("senha_hash", { length: 255 }).notNull(),
   /** Requisito 3: quem pode fazer o que. Todo mundo nasce como "usuario". */
   role: varchar("role", { length: 20 }).notNull().default("usuario"),
+  /**
+   * Atividade 7: assinatura Premium ativa.
+   *
+   * E o DIREITO, nao o pagamento: os IDs do Stripe ficam na tabela
+   * `assinaturas` do catalogo (dono da integracao). Aqui mora so o "pode ou
+   * nao pode", porque `usuarios` e a fronteira de dados deste servico.
+   * Nasce `false`; o webhook do Stripe manda o catalogo chamar o endpoint
+   * interno que vira este booleano.
+   */
+  premium: boolean("premium").notNull().default(false),
   criadoEm: timestamp("criado_em").defaultNow(),
 });
 

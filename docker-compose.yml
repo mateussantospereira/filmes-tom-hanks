@@ -51,6 +51,20 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-isw055-mateus}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-e3316f32df8692e0ee4571fc7524465e}
       MINIO_BUCKET: ${MINIO_BUCKET:-perfis}
+      # Atividade 7 — Stripe (MODO DE TESTE). O cartao e digitado na pagina
+      # hospedada pelo Stripe; aqui nunca entra numero de cartao. Sem as chaves,
+      # o checkout responde 503 e o resto do catalogo continua no ar.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_LABEL: ${STRIPE_PRICE_LABEL:-R$ 9,90/mes}
+      # Beneficio do plano gratuito: N favoritos. O Premium e ilimitado.
+      LIMITE_FAVORITOS_GRATIS: ${LIMITE_FAVORITOS_GRATIS:-5}
+      # URL publica do catalogo, usada no success_url/cancel_url do Stripe.
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-https://mateus-pereira-isw055.lapps.studio}
+      # Segredo compartilhado com o auth-service para o webhook avisar
+      # "marque este usuario como premium" (rota interna).
+      INTERNAL_SYNC_TOKEN: ${INTERNAL_SYNC_TOKEN:-c5bbcf267c5a85f6cae783edf698e59a5c90f76f9be5381e}
     # Ordem de subida apenas: o catalogo NAO depende do auth-service estar
     # saudavel para ficar no ar. Se o auth-service cair, o catalogo continua
     # servindo filmes e so recusa o que exige autenticacao.
@@ -99,6 +113,10 @@ services:
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Catalogo de Filmes}
       LOG_SERVICE_URL: ${LOG_SERVICE_URL:-http://log-service:3000}
       LOG_INGEST_TOKEN: ${LOG_INGEST_TOKEN:-}
+      # Atividade 7 — segredo compartilhado com o catalogo. O webhook do Stripe
+      # chega no catalogo; ele chama a rota interna deste servico com este token
+      # para marcar `usuarios.premium`. Sem o segredo, a rota responde 503.
+      INTERNAL_SYNC_TOKEN: ${INTERNAL_SYNC_TOKEN:-c5bbcf267c5a85f6cae783edf698e59a5c90f76f9be5381e}
     networks:
       - interna
     healthcheck:

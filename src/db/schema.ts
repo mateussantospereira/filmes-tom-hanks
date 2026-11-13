@@ -79,3 +79,36 @@ export const perfis = mysqlTable("perfis", {
   fotoChave: varchar("foto_chave", { length: 255 }),
   atualizadoEm: timestamp("atualizado_em").defaultNow().onUpdateNow(),
 });
+
+/**
+ * Atividade 7 — assinatura do plano Premium.
+ *
+ * O dono desta tabela e o CATALOGO, porque e ele que conversa com o Stripe.
+ * Ela guarda, no maximo, os IDENTIFICADORES que o provedor devolve:
+ *
+ *   stripe_customer_id     -> `cus_...` (quem paga)
+ *   stripe_subscription_id -> `sub_...` (a assinatura recorrente)
+ *   status                 -> pendente | ativa | cancelada | inadimplente
+ *
+ * NUNCA entra aqui numero de cartao, CVV ou validade: esses dados ficam so do
+ * lado do Stripe, na pagina hospedada por ele (requisito 5 da atividade).
+ *
+ * O DIREITO em si (`premium: true`) fica em `usuarios`, no auth-service, que e
+ * o dono da identidade. O webhook atualiza os dois: esta tabela (dados da
+ * assinatura) e o auth-service (o beneficio). E a mesma divisao de donos das
+ * atividades anteriores: identidade la, pagamento aqui.
+ */
+export const assinaturas = mysqlTable(
+  "assinaturas",
+  {
+    usuarioId: int("usuario_id")
+      .primaryKey()
+      .references(() => usuarios.id),
+    stripeCustomerId: varchar("stripe_customer_id", { length: 64 }),
+    stripeSubscriptionId: varchar("stripe_subscription_id", { length: 64 }),
+    status: varchar("status", { length: 20 }).notNull().default("pendente"),
+    plano: varchar("plano", { length: 40 }).notNull().default("premium"),
+    atualizadoEm: timestamp("atualizado_em").defaultNow().onUpdateNow(),
+  },
+  (t) => [unique().on(t.stripeSubscriptionId)]
+);
