@@ -405,6 +405,22 @@ Existe um script que roda a parte automatizada disso:
 - **E-mail**: nodemailer (SMTP)
 - **Deploy**: Docker + Portainer
 
+## Classificação SaaS / PaaS / IaaS do projeto
+
+Cada peça do sistema fica na seguinte camada de nuvem:
+
+| Peça do Sistema | Camada | Justificativa |
+|-----------------|--------|---------------|
+| **VM Proxmont (Fatec) com Ubuntu** | **IaaS** | Você gerencia o Sistema Operacional (Ubuntu), instala o Docker, configura redes e volumes. O provedor entrega a máquina virtual e a rede base; o resto é por sua conta. |
+| **Docker containers (app, auth-service, log-service, redis, minio)** | **PaaS** | O provedor (Fatec/Proxmox) cuida do SO e do runtime Docker. Você só faz deploy dos seus containers via `docker-compose`. Não se preocupa em reinstalar o SO a cada mudança. |
+| **Stripe (pagamentos)** | **SaaS** | Você só consome uma funcionalidade via API. O número do cartão, CVV, validade são digitados na página hospedada pelo Stripe; seu backend nunca vê esses dados. Você usa o Checkout e os webhooks, não gerencia infraestrutura nenhuma. |
+| **Mailtrap / Brevo (e-mail transacional)** | **SaaS** | Você consome o serviço de envio de e-mail via SMTP. Não administra servidor SMTP próprio. Em dev usa-se Mailtrap (sandbox), em prod usa Brevo (envio real). Apenas configura credenciais em variáveis de ambiente. |
+| **TMDB API (dados de filmes)** | **SaaS** | Você consome uma API externa para obter dados de filmes de Tom Hanks. Não gerencia o banco de dados de filmes, nem a infraestrutura que o serve. Apenas faz requisições HTTP e processa o retorno. |
+| **MinIO (fotos de perfil)** | **PaaS** (borderline) | O MinIO roda dentro de um container Docker na sua VM. Você gerencia o bucket e as credenciais, mas o armazenamento de objetos e o servidor MinIO vêm da imagem container. Fica entre PaaS e SaaS porque a lógica de armazenamento é sua, mas a execução é delegada ao container. |
+| **Redis (streams de auditoria)** | **PaaS** | O Redis roda dentro de um container Docker na sua VM. Você configura o stream e o MAXLEN, mas o serviço de cache/stream em si vem do container oficial Redis. |
+
+[DOCUMENTACAO.md](./DOCUMENTACAO.md) — documentação reversa completa (especificação, arquitetura, regras de negócio, modelo de dados).
+
 ---
 
 ## Deploy no Portainer
