@@ -984,15 +984,51 @@ O script cria uma conta, prova que ela nasce `premium: false`, favorita 5 filmes
 2. Clique em **⭐ Assinar Premium — R$ 9,90/mês**. Você sai do catálogo e vai para a página do Stripe (modo de teste).
 3. Pague com `4242 4242 4242 4242`, validade futura, CVC qualquer.
 4. O Stripe redireciona de volta para `/catalog?checkout=sucesso`; a página consulta o status até o webhook chegar e mostra o selo **⭐ Premium**.
-5. Confira no banco: `SELECT id, nome, email, premium FROM usuarios WHERE email = '...';` → `premium = 1`, e em `assinaturas` o `cus_...`/`sub_...` com status `ativa`. Para o print sair alinhado:\n\n```bash\nbun --env-file=.env.portainer run scripts/mostrar-premium.ts voce@exemplo.com\n```
+5. Confira no banco: `SELECT id, nome, email, premium FROM usuarios WHERE email = '...';` → `premium = 1`, e em `assinaturas` o `cus_...`/`sub_...` com status `ativa`.
 
-Os três prints pedidos pelo enunciado:
+Para o print sair alinhado:
 
-| Print | O que mostrar |
+```bash
+bun --env-file=.env.portainer run scripts/mostrar-premium.ts voce@exemplo.com
+```
+
+No deploy de produção desta entrega, o produto/preço, a chave secreta e o webhook **já estão configurados no modo de teste** — não é preciso criar nada no painel para reproduzir o fluxo.
+
+Os prints abaixo são de uma conta de demonstração que passou pelo fluxo real (checkout + webhook) em produção:
+
+| Print | O que mostra |
 |---|---|
-| **Checkout concluído** | a página de sucesso do Stripe (ou a tela de checkout preenchida com o cartão de teste) deixando claro que é **modo de teste** |
-| **Usuário virou premium no banco** | `SELECT id, nome, email, premium FROM usuarios WHERE ...` mostrando `premium = 1`, e de preferência `SELECT * FROM assinaturas ...` com `status = 'ativa'` e os IDs do Stripe |
-| **Benefício funcionando** | o perfil com o selo **⭐ Premium** e/ou a diferença 5 favoritos × ilimitado (o 6º favorito do comum recebendo 403) |
+| **Checkout concluído** | a tela do Stripe (modo de teste) com o cartão de teste e a volta ao catálogo com o plano ativo |
+| **Usuário virou premium no banco** | `usuarios.premium = TRUE` e `assinaturas.status = 'ativa'` com os IDs do Stripe |
+| **Benefício funcionando** | o 6º favorito permitido no Premium e a faixa "sem limite" (no gratuito, o 6º recebe `403`) |
+
+#### 1. Checkout no Stripe (modo de teste)
+
+![Checkout do Stripe em modo de teste, com o cartão 4242 4242 4242 4242 preenchido](docs/images/atividade-7-checkout-stripe.png)
+
+A faixa **Sandbox** e o cartão `4242 4242 4242 4242` deixam claro que é teste. O cartão é digitado na página do Stripe; o catálogo nunca vê número, CVV ou validade.
+
+#### 2. Checkout concluído — de volta ao catálogo
+
+![Perfil logo após o pagamento, com o Plano Premium ativo](docs/images/atividade-7-checkout-concluido.png)
+
+O Stripe redirecionou para `/catalog?checkout=sucesso`; a página consultou o status até o webhook chegar e mostrou **⭐ Plano Premium ativo**.
+
+#### 3. Usuário virou premium no banco
+
+![Tabelas usuarios e assinaturas no MariaDB de produção](docs/images/atividade-7-banco-premium.png)
+
+`usuarios.premium = TRUE` e `assinaturas.status = 'ativa'` com `cus_...`/`sub_...` — nenhum dado de cartão é armazenado.
+
+#### 4. Benefício funcionando
+
+![Aba de favoritos com 6 filmes e a faixa de favoritos ilimitados](docs/images/atividade-7-beneficio-favoritos.png)
+
+Seis favoritos na mesma conta Premium (o plano gratuito para no quinto) e a faixa "⭐ Plano Premium ativo — 6 favoritos, sem limite.".
+
+O selo **⭐ Premium** também aparece no perfil, para qualquer pessoa que abrir:
+
+![Perfil com o selo ⭐ Premium e o cartão do plano ativo](docs/images/atividade-7-perfil-premium.png)
 
 ---
 
