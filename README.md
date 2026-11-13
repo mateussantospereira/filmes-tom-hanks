@@ -1028,6 +1028,8 @@ Seis favoritos na mesma conta Premium (o plano gratuito para no quinto) e a faix
 
 O selo **⭐ Premium** também aparece no perfil, para qualquer pessoa que abrir:
 
+![Nome da conta com o selo ⭐ Premium ao lado](docs/images/atividade-7-selo-premium.png)
+
 ![Perfil com o selo ⭐ Premium e o cartão do plano ativo](docs/images/atividade-7-perfil-premium.png)
 
 ---
